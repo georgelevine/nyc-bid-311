@@ -1,34 +1,30 @@
 /**
- * app.js — Main app orchestration, state management, URL sharing, CSV export
+ * app.js — Main app orchestration, state management, CSV export
  */
 const App = (() => {
-  let allRecords = [];      // All display records currently loaded
-  let matchResult = null;   // { matched, odOnly, portalOnly }
-  let typeColorMap = {};     // complaint_type → hex color
+  let allRecords = [];
+  let matchResult = null;
+  let typeColorMap = {};
 
   async function init() {
-    // Init map
     MapView.init();
 
-    // Load BID data
     try {
       showLoading('Loading BID boundaries...');
       const bidGeoJSON = await Data.fetchBIDs();
       Filters.init(bidGeoJSON);
       hideLoading();
-
-      // Restore from URL hash
       Filters.restoreFromHash();
     } catch (err) {
       showError('Failed to load BID data: ' + err.message);
     }
 
-    // CSV export
+    // CSV export in header
     document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
   }
 
   /**
-   * Main data loading function — called by Filters when user clicks Load
+   * Main data loading
    */
   async function loadData(selectedBID, fromDate, toDate) {
     showLoading('Fetching 311 data...');
@@ -53,7 +49,6 @@ const App = (() => {
 
       showLoading('Filtering to BID boundary...');
 
-      // Client-side point-in-polygon filter against buffered boundary
       const odFiltered = odRecords.filter(r =>
         Polygons.isPointInside(r.longitude, r.latitude, processed)
       );
@@ -64,10 +59,8 @@ const App = (() => {
 
       showLoading('Matching records...');
 
-      // Match records between sources
       matchResult = Matching.matchRecords(odFiltered, portalFiltered);
 
-      // Build display records
       allRecords = [
         ...matchResult.matched.map(Matching.mergeRecord),
         ...matchResult.odOnly.map(Matching.odRecord),
@@ -83,13 +76,15 @@ const App = (() => {
       // Build type color map
       typeColorMap = buildTypeColorMap(allRecords);
 
-      // Build complaint chips
+      // Build complaint type counts
       const typeCounts = {};
       for (const r of allRecords) {
         const t = r.complaint_type || 'Unknown';
         typeCounts[t] = (typeCounts[t] || 0) + 1;
       }
-      Filters.buildChips(typeCounts);
+
+      // Build category legend on map
+      MapView.buildCategoryLegend(typeCounts, typeColorMap);
 
       // Plot on map
       MapView.plotRecords(allRecords, typeColorMap);
@@ -97,6 +92,9 @@ const App = (() => {
 
       // Update summary
       Summary.update(matchResult, allRecords);
+
+      // Show export button in header
+      document.getElementById('export-csv-btn').classList.remove('hidden');
 
       // Update URL
       Filters.updateHash();
@@ -117,29 +115,19 @@ const App = (() => {
    */
   function replotCurrentData() {
     if (allRecords.length > 0) {
-      const activeTypes = Filters.getActiveTypes();
-      if (activeTypes.size > 0) {
-        const filtered = allRecords.filter(r => activeTypes.has(r.complaint_type));
-        MapView.plotRecords(filtered, typeColorMap);
-      } else {
-        MapView.plotRecords(allRecords, typeColorMap);
-      }
+      const active = MapView.getActiveCategories();
+      const filtered = allRecords.filter(r => active.has(r.complaint_type));
+      MapView.plotRecords(filtered, typeColorMap);
     }
   }
 
   /**
-   * Handle complaint type chip filter changes
+   * Handle category toggle from legend
    */
-  function onChipFilterChange(activeTypes) {
-    const filtered = MapView.filterByTypes(activeTypes);
-    // Update summary with filtered data
+  function onCategoryChange(activeCategories) {
     if (matchResult) {
-      const filteredMatchResult = {
-        matched: matchResult.matched.filter(m => activeTypes.has((m.od || {}).complaint_type)),
-        odOnly: matchResult.odOnly.filter(r => activeTypes.has(r.complaint_type)),
-        portalOnly: matchResult.portalOnly.filter(r => activeTypes.has(r.problem))
-      };
-      Summary.update(filteredMatchResult, filtered);
+      const filtered = allRecords.filter(r => activeCategories.has(r.complaint_type));
+      Summary.update(matchResult, filtered);
     }
   }
 
@@ -167,7 +155,7 @@ const App = (() => {
   function getAllRecords() { return allRecords; }
 
   /**
-   * Export current data as CSV
+   * Export CSV
    */
   function exportCSV() {
     if (allRecords.length === 0) return;
@@ -180,22 +168,12 @@ const App = (() => {
     ];
 
     const rows = allRecords.map(r => [
-      r._source,
-      r.unique_key || '',
-      r.srnumber || '',
-      r.complaint_type || '',
-      r.descriptor || '',
-      r.status || '',
-      r.agency_name || r.agency || '',
-      r.created_date || '',
-      r.closed_date || '',
-      r.incident_address || '',
-      r.borough || '',
-      r.incident_zip || '',
-      r.community_board || '',
-      r.open_data_channel_type || '',
-      r.latitude || '',
-      r.longitude || '',
+      r._source, r.unique_key || '', r.srnumber || '',
+      r.complaint_type || '', r.descriptor || '', r.status || '',
+      r.agency_name || r.agency || '', r.created_date || '', r.closed_date || '',
+      r.incident_address || '', r.borough || '', r.incident_zip || '',
+      r.community_board || '', r.open_data_channel_type || '',
+      r.latitude || '', r.longitude || '',
       (r.resolution_description || '').replace(/[\r\n]+/g, ' ').substring(0, 500),
       r.portalUrl || ''
     ]);
@@ -217,8 +195,7 @@ const App = (() => {
 
   // UI helpers
   function showLoading(text) {
-    const el = document.getElementById('loading-indicator');
-    el.classList.remove('hidden');
+    document.getElementById('loading-indicator').classList.remove('hidden');
     document.getElementById('loading-text').textContent = text || 'Loading...';
     document.getElementById('load-btn').disabled = true;
   }
@@ -238,8 +215,7 @@ const App = (() => {
     document.getElementById('error-message').classList.add('hidden');
   }
 
-  // Start
   document.addEventListener('DOMContentLoaded', init);
 
-  return { loadData, replotCurrentData, onChipFilterChange, getTypeColor, getAllRecords };
+  return { loadData, replotCurrentData, onCategoryChange, getTypeColor, getAllRecords };
 })();

@@ -1,5 +1,5 @@
 /**
- * map.js — Leaflet map rendering, layers, popups, legend
+ * map.js — Leaflet map rendering, layers, popups, category legend
  */
 const MapView = (() => {
   let map;
@@ -8,12 +8,12 @@ const MapView = (() => {
   let markersLayer = null;
   let heatLayer = null;
   let currentRecords = [];
+  let currentTypeColorMap = {};
+  let activeCategories = new Set();
 
-  const COLORS = {
-    matched: '#34d399',
-    opendata: '#60a5fa',
-    portal: '#fb923c'
-  };
+  const MARKER_RADIUS = 8;
+  const MARKER_STROKE = '#3a3a3a';
+  const MARKER_STROKE_WEIGHT = 1.5;
 
   // Color palette for complaint types
   const TYPE_COLORS = [
@@ -30,14 +30,12 @@ const MapView = (() => {
       preferCanvas: true
     });
 
-    // Dark tile layer
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 19
     }).addTo(map);
 
-    // Initialize marker cluster group
     markersLayer = L.markerClusterGroup({
       chunkedLoading: true,
       maxClusterRadius: 50,
@@ -51,14 +49,12 @@ const MapView = (() => {
   }
 
   /**
-   * Draw BID polygon layers (raw parcels + buffered boundary)
+   * Draw BID polygon layers
    */
   function drawBIDPolygon(processedPoly) {
     clearPolygonLayers();
-
     if (!processedPoly) return;
 
-    // Raw parcels — light fill, dashed outline
     parcelsLayer = L.geoJSON(processedPoly.raw, {
       style: {
         fillColor: '#4f9cf7',
@@ -69,7 +65,6 @@ const MapView = (() => {
       }
     }).addTo(map);
 
-    // Buffered boundary — solid outline, no fill
     bufferLayer = L.geoJSON(processedPoly.buffered, {
       style: {
         fillColor: '#4f9cf7',
@@ -80,43 +75,143 @@ const MapView = (() => {
       }
     }).addTo(map);
 
-    // Zoom to buffered bounds
     const bounds = Polygons.bboxToLatLngBounds(processedPoly.bbox);
     map.fitBounds(bounds, { padding: [30, 30] });
   }
 
   /**
-   * Plot 311 records on the map
-   * records: array of display records with _source field
-   * typeColorMap: { complaintType: colorHex }
+   * Plot records on the map — fill = complaint type color, stroke = dark gray
    */
   function plotRecords(records, typeColorMap) {
     clearMarkers();
     currentRecords = records;
+    currentTypeColorMap = typeColorMap;
+    activeCategories = new Set(Object.keys(typeColorMap));
 
     for (const rec of records) {
       if (!rec.latitude || !rec.longitude) continue;
-
-      const sourceColor = COLORS[rec._source] || COLORS.opendata;
       const typeColor = typeColorMap[rec.complaint_type] || '#94a3b8';
-
-      const marker = L.circleMarker([rec.latitude, rec.longitude], {
-        radius: 6,
-        fillColor: typeColor,
-        fillOpacity: 0.8,
-        color: sourceColor,
-        weight: 2,
-        opacity: 1
-      });
-
-      marker.bindPopup(() => buildPopup(rec), { maxWidth: 320, minWidth: 260 });
-      marker.record = rec; // Store reference for filtering
-      markersLayer.addLayer(marker);
+      addMarker(rec, typeColor);
     }
 
-    // Show legend
     document.getElementById('map-legend').classList.remove('hidden');
   }
+
+  function addMarker(rec, typeColor) {
+    const marker = L.circleMarker([rec.latitude, rec.longitude], {
+      radius: MARKER_RADIUS,
+      fillColor: typeColor,
+      fillOpacity: 0.85,
+      color: MARKER_STROKE,
+      weight: MARKER_STROKE_WEIGHT,
+      opacity: 1
+    });
+    marker.bindPopup(() => buildPopup(rec), { maxWidth: 320, minWidth: 260 });
+    marker.record = rec;
+    markersLayer.addLayer(marker);
+  }
+
+  /**
+   * Build the interactive category legend
+   */
+  const MAX_LEGEND_ITEMS = 15;
+
+  function buildCategoryLegend(typeCounts, typeColorMap) {
+    const container = document.getElementById('legend-categories');
+    container.innerHTML = '';
+
+    const sorted = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+    const topTypes = sorted.slice(0, MAX_LEGEND_ITEMS);
+    const otherTypes = sorted.slice(MAX_LEGEND_ITEMS);
+    const otherCount = otherTypes.reduce((sum, [, c]) => sum + c, 0);
+
+    // Active categories includes ALL types (including "other")
+    activeCategories = new Set(sorted.map(([type]) => type));
+
+    for (const [type, count] of topTypes) {
+      const color = typeColorMap[type] || '#94a3b8';
+      const row = document.createElement('div');
+      row.className = 'legend-cat-row';
+      row.dataset.type = type;
+      row.innerHTML = `<span class="legend-cat-dot" style="background:${color};"></span>` +
+        `<span class="legend-cat-name" title="${esc(type)}">${esc(type)}</span>` +
+        `<span class="legend-cat-count">${count}</span>`;
+      row.addEventListener('click', () => toggleCategory(type));
+      container.appendChild(row);
+    }
+
+    // "Other" row grouping remaining types
+    if (otherCount > 0) {
+      const otherTypeNames = otherTypes.map(([t]) => t);
+      const row = document.createElement('div');
+      row.className = 'legend-cat-row';
+      row.dataset.type = '__other__';
+      row.innerHTML = `<span class="legend-cat-dot" style="background:#94a3b8;"></span>` +
+        `<span class="legend-cat-name" title="${otherTypeNames.length} more types">Other (${otherTypeNames.length} types)</span>` +
+        `<span class="legend-cat-count">${otherCount}</span>`;
+      row.addEventListener('click', () => {
+        const allActive = otherTypeNames.every(t => activeCategories.has(t));
+        for (const t of otherTypeNames) {
+          if (allActive) activeCategories.delete(t);
+          else activeCategories.add(t);
+        }
+        row.classList.toggle('inactive', !otherTypeNames.some(t => activeCategories.has(t)));
+        rebuildMarkers();
+        App.onCategoryChange(activeCategories);
+      });
+      container.appendChild(row);
+    }
+
+    // Wire select all / deselect all
+    document.getElementById('legend-select-all').onclick = () => selectAllCategories(sorted.map(([t]) => t));
+    document.getElementById('legend-deselect-all').onclick = () => deselectAllCategories();
+  }
+
+  function toggleCategory(type) {
+    if (activeCategories.has(type)) {
+      activeCategories.delete(type);
+    } else {
+      activeCategories.add(type);
+    }
+    updateCategoryVisuals();
+    rebuildMarkers();
+    App.onCategoryChange(activeCategories);
+  }
+
+  function selectAllCategories(allTypes) {
+    activeCategories = new Set(allTypes || Object.keys(currentTypeColorMap));
+    updateCategoryVisuals();
+    rebuildMarkers();
+    App.onCategoryChange(activeCategories);
+  }
+
+  function deselectAllCategories() {
+    activeCategories.clear();
+    updateCategoryVisuals();
+    rebuildMarkers();
+    App.onCategoryChange(activeCategories);
+  }
+
+  function updateCategoryVisuals() {
+    document.querySelectorAll('.legend-cat-row').forEach(row => {
+      row.classList.toggle('inactive', !activeCategories.has(row.dataset.type));
+    });
+  }
+
+  /**
+   * Rebuild markers based on active categories
+   */
+  function rebuildMarkers() {
+    markersLayer.clearLayers();
+    const filtered = currentRecords.filter(r => activeCategories.has(r.complaint_type));
+    for (const rec of filtered) {
+      if (!rec.latitude || !rec.longitude) continue;
+      const typeColor = currentTypeColorMap[rec.complaint_type] || '#94a3b8';
+      addMarker(rec, typeColor);
+    }
+  }
+
+  function getActiveCategories() { return activeCategories; }
 
   /**
    * Build HTML popup for a record
@@ -179,53 +274,35 @@ const MapView = (() => {
   }
 
   /**
-   * Update heatmap layer
+   * Heatmap
    */
   function updateHeatmap(records) {
-    if (heatLayer) {
-      map.removeLayer(heatLayer);
-      heatLayer = null;
-    }
-
-    const points = records
-      .filter(r => r.latitude && r.longitude)
-      .map(r => [r.latitude, r.longitude, 0.5]);
-
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    const points = records.filter(r => r.latitude && r.longitude).map(r => [r.latitude, r.longitude, 0.5]);
     heatLayer = L.heatLayer(points, {
-      radius: 20,
-      blur: 15,
-      maxZoom: 16,
+      radius: 20, blur: 15, maxZoom: 16,
       gradient: { 0.2: '#60a5fa', 0.4: '#34d399', 0.6: '#fbbf24', 0.8: '#fb923c', 1: '#f87171' }
     });
   }
 
-  /**
-   * Show/hide heatmap
-   */
   function toggleHeatmap(show) {
     if (!heatLayer) return;
     if (show) {
       map.addLayer(heatLayer);
-      markersLayer.clearLayers(); // Hide pins when heatmap is on
+      markersLayer.clearLayers();
     } else {
       map.removeLayer(heatLayer);
-      // Re-plot current records
-      if (currentRecords.length > 0) {
-        // Caller should re-plot
-      }
     }
   }
 
   function toggleParcels(show) {
     if (!parcelsLayer) return;
-    if (show) map.addLayer(parcelsLayer);
-    else map.removeLayer(parcelsLayer);
+    if (show) map.addLayer(parcelsLayer); else map.removeLayer(parcelsLayer);
   }
 
   function toggleBuffer(show) {
     if (!bufferLayer) return;
-    if (show) map.addLayer(bufferLayer);
-    else map.removeLayer(bufferLayer);
+    if (show) map.addLayer(bufferLayer); else map.removeLayer(bufferLayer);
   }
 
   function clearPolygonLayers() {
@@ -239,38 +316,7 @@ const MapView = (() => {
     currentRecords = [];
   }
 
-  /**
-   * Filter visible markers by complaint type set
-   */
-  function filterByTypes(activeTypes) {
-    if (!markersLayer) return;
-    markersLayer.eachLayer(marker => {
-      if (marker.record) {
-        // markercluster doesn't support hide/show, so we rebuild
-      }
-    });
-
-    // Rebuild markers with only active types
-    markersLayer.clearLayers();
-    const filtered = currentRecords.filter(r => activeTypes.has(r.complaint_type));
-    for (const rec of filtered) {
-      if (!rec.latitude || !rec.longitude) continue;
-      const sourceColor = COLORS[rec._source] || COLORS.opendata;
-      const marker = L.circleMarker([rec.latitude, rec.longitude], {
-        radius: 6,
-        fillColor: App.getTypeColor(rec.complaint_type),
-        fillOpacity: 0.8,
-        color: sourceColor,
-        weight: 2,
-        opacity: 1
-      });
-      marker.bindPopup(() => buildPopup(rec), { maxWidth: 320, minWidth: 260 });
-      marker.record = rec;
-      markersLayer.addLayer(marker);
-    }
-
-    return filtered;
-  }
+  function getMap() { return map; }
 
   // Helpers
   function esc(str) {
@@ -281,24 +327,18 @@ const MapView = (() => {
   }
 
   function formatDate(str) {
-    if (!str) return '—';
+    if (!str) return '\u2014';
     try {
-      // Handle both formats
       if (str.includes('T')) {
         return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
       }
-      // Portal format: M/D/YYYY H:MM:SS AM/PM
       return str.replace(/:\d{2}\s/, ' ');
-    } catch (e) {
-      return str;
-    }
+    } catch (e) { return str; }
   }
 
-  function getMap() { return map; }
-
   return {
-    init, drawBIDPolygon, plotRecords, updateHeatmap, toggleHeatmap,
-    toggleParcels, toggleBuffer, clearMarkers, clearPolygonLayers,
-    filterByTypes, getMap, TYPE_COLORS, COLORS
+    init, drawBIDPolygon, plotRecords, buildCategoryLegend, updateHeatmap,
+    toggleHeatmap, toggleParcels, toggleBuffer, clearMarkers, clearPolygonLayers,
+    rebuildMarkers, getActiveCategories, getMap, TYPE_COLORS
   };
 })();

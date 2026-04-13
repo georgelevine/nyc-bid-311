@@ -1,5 +1,6 @@
 /**
  * summary.js — Summary panel stats and Chart.js visualizations
+ * Now leads with status-focused stats; data source info collapsed at bottom
  */
 const Summary = (() => {
   let statusChart = null;
@@ -11,52 +12,46 @@ const Summary = (() => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        labels: { color: '#9aa0a6', font: { size: 11 } }
-      }
+      legend: { labels: { color: '#9aa0a6', font: { size: 11 } } }
     }
   };
 
   /**
    * Update all summary stats and charts
-   * matchResult: { matched, odOnly, portalOnly }
-   * allRecords: merged display records array
    */
   function update(matchResult, allRecords) {
     const section = document.getElementById('summary-section');
     section.classList.remove('hidden');
 
-    // Counts
+    // Primary stats: status-focused
     const total = allRecords.length;
-    const matchedCount = matchResult.matched.length;
-    const odOnlyCount = matchResult.odOnly.length;
-    const portalOnlyCount = matchResult.portalOnly.length;
-    // Match rate: of portal records that were returned, how many found an OD match?
-    const portalTotal = matchedCount + portalOnlyCount;
-    const matchRate = portalTotal > 0 ? ((matchedCount / portalTotal) * 100).toFixed(1) : '—';
+    const closedCount = allRecords.filter(r => (r.status || '').toLowerCase() === 'closed').length;
+    const openCount = total - closedCount;
 
     document.getElementById('stat-total').textContent = total.toLocaleString();
-    document.getElementById('stat-matched').textContent = matchedCount.toLocaleString();
-    document.getElementById('stat-od-only').textContent = odOnlyCount.toLocaleString();
-    document.getElementById('stat-portal-only').textContent = portalOnlyCount.toLocaleString();
-    document.getElementById('stat-match-rate').textContent = `${matchRate}%`;
-
-    // Status breakdown
-    updateStatusChart(allRecords);
-
-    // Top complaint types
-    updateComplaintsChart(allRecords);
-
-    // Agency breakdown
-    updateAgencyList(allRecords);
+    document.getElementById('stat-closed').textContent = closedCount.toLocaleString();
+    document.getElementById('stat-open').textContent = openCount.toLocaleString();
 
     // Avg time to close
     updateAvgClose(allRecords);
 
-    // Channel breakdown
-    updateChannelChart(allRecords);
+    // Data source breakdown (collapsed section)
+    const matchedCount = matchResult.matched.length;
+    const odOnlyCount = matchResult.odOnly.length;
+    const portalOnlyCount = matchResult.portalOnly.length;
+    const portalTotal = matchedCount + portalOnlyCount;
+    const matchRate = portalTotal > 0 ? ((matchedCount / portalTotal) * 100).toFixed(1) : '\u2014';
 
-    // Timeline
+    document.getElementById('stat-matched').textContent = matchedCount.toLocaleString();
+    document.getElementById('stat-od-only').textContent = odOnlyCount.toLocaleString();
+    document.getElementById('stat-portal-only').textContent = portalOnlyCount.toLocaleString();
+    document.getElementById('stat-match-rate').textContent = typeof matchRate === 'string' ? matchRate : `${matchRate}%`;
+
+    // Charts
+    updateStatusChart(allRecords);
+    updateComplaintsChart(allRecords);
+    updateAgencyList(allRecords);
+    updateChannelChart(allRecords);
     updateTimelineChart(allRecords);
   }
 
@@ -151,15 +146,15 @@ const Summary = (() => {
         const created = new Date(r.created_date);
         const closed = new Date(r.closed_date);
         const days = (closed - created) / (1000 * 60 * 60 * 24);
-        if (days >= 0 && days < 365) { // Filter outliers
+        if (days >= 0 && days < 365) {
           totalDays += days;
           count++;
         }
       } catch (e) { /* skip */ }
     }
 
-    const avg = count > 0 ? (totalDays / count).toFixed(1) : '—';
-    document.getElementById('stat-avg-close').textContent = avg === '—' ? avg : `${avg} days`;
+    const avg = count > 0 ? (totalDays / count).toFixed(1) : '\u2014';
+    document.getElementById('stat-avg-close').textContent = avg === '\u2014' ? avg : `${avg}`;
   }
 
   function updateChannelChart(records) {
@@ -189,7 +184,6 @@ const Summary = (() => {
   }
 
   function updateTimelineChart(records) {
-    // Group by day
     const dayCounts = {};
     for (const r of records) {
       if (!r.created_date) continue;

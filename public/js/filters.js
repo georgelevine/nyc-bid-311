@@ -1,49 +1,165 @@
 /**
- * filters.js — BID dropdown, date range picker, complaint type chips
+ * filters.js — Searchable BID dropdown, quick date buttons, date range picker
  */
 const Filters = (() => {
-  let bidData = null;  // Full GeoJSON
+  let bidData = null;
+  let bidList = [];       // sorted list of { idx, name, borough, website, yearFounded }
   let selectedBID = null;
   let datePicker = null;
-  let activeTypes = new Set(); // Empty = show all
-  let allTypes = [];
+  let activeQuickRange = '30';
 
   function init(geojson) {
     bidData = geojson;
-    populateDropdown();
+    buildBIDList();
+    initBIDSearch();
     initDatePicker();
+    initQuickDates();
     bindEvents();
   }
 
-  function populateDropdown() {
-    const select = document.getElementById('bid-select');
+  // ===== BID Search Dropdown =====
 
-    // Extract BIDs, sort by borough then name
-    const bids = bidData.features.map((f, idx) => ({
+  function buildBIDList() {
+    bidList = bidData.features.map((f, idx) => ({
       idx,
       name: f.properties.f_all_bi_2 || `BID ${idx}`,
       borough: f.properties.f_all_bi_1 || 'Unknown',
       website: f.properties.f_all_bi_4 || null,
       yearFounded: f.properties.year_found || null
     })).sort((a, b) => a.borough.localeCompare(b.borough) || a.name.localeCompare(b.name));
+  }
 
-    // Group by borough
+  function initBIDSearch() {
+    const input = document.getElementById('bid-search');
+    const dropdown = document.getElementById('bid-dropdown-list');
+
+    input.addEventListener('focus', () => {
+      renderBIDDropdown(input.value);
+      dropdown.classList.remove('hidden');
+    });
+
+    input.addEventListener('input', () => {
+      renderBIDDropdown(input.value);
+      dropdown.classList.remove('hidden');
+    });
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#bid-search-wrapper')) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
+    // Keyboard nav
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') dropdown.classList.add('hidden');
+    });
+  }
+
+  function renderBIDDropdown(query) {
+    const dropdown = document.getElementById('bid-dropdown-list');
+    dropdown.innerHTML = '';
+
+    const q = (query || '').toLowerCase().trim();
+    const filtered = q ? bidList.filter(b => b.name.toLowerCase().includes(q) || b.borough.toLowerCase().includes(q)) : bidList;
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = '<div class="bid-dropdown-item" style="color:var(--text-muted);">No matches</div>';
+      return;
+    }
+
     let currentBorough = '';
-    let optgroup = null;
-
-    for (const bid of bids) {
+    for (const bid of filtered) {
       if (bid.borough !== currentBorough) {
         currentBorough = bid.borough;
-        optgroup = document.createElement('optgroup');
-        optgroup.label = currentBorough;
-        select.appendChild(optgroup);
+        const header = document.createElement('div');
+        header.className = 'bid-dropdown-group';
+        header.textContent = currentBorough;
+        dropdown.appendChild(header);
       }
-      const option = document.createElement('option');
-      option.value = bid.idx;
-      option.textContent = bid.name;
-      optgroup.appendChild(option);
+      const item = document.createElement('div');
+      item.className = 'bid-dropdown-item';
+      item.textContent = bid.name;
+      item.addEventListener('click', () => selectBID(bid));
+      dropdown.appendChild(item);
     }
   }
+
+  function selectBID(bid) {
+    const input = document.getElementById('bid-search');
+    const dropdown = document.getElementById('bid-dropdown-list');
+
+    input.value = bid.name;
+    dropdown.classList.add('hidden');
+
+    const feature = bidData.features[bid.idx];
+    selectedBID = {
+      feature,
+      idx: bid.idx,
+      name: bid.name,
+      borough: bid.borough,
+      website: bid.website,
+      yearFounded: bid.yearFounded
+    };
+
+    const processed = Polygons.processFeature(feature);
+    if (processed) {
+      selectedBID.processed = processed;
+      MapView.drawBIDPolygon(processed);
+    }
+
+    showBIDInfo();
+    updateLoadButton();
+    updateHash();
+  }
+
+  // ===== Quick Date Buttons =====
+
+  function initQuickDates() {
+    document.querySelectorAll('.date-quick').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const range = btn.dataset.range;
+        if (range === 'custom') {
+          datePicker.open();
+          setActiveQuickButton('custom');
+          return;
+        }
+
+        const today = new Date();
+        let from;
+        switch (range) {
+          case 'today':
+            from = new Date(today);
+            break;
+          case 'week':
+            from = new Date(today);
+            from.setDate(today.getDate() - 7);
+            break;
+          case '30':
+            from = new Date(today);
+            from.setDate(today.getDate() - 30);
+            break;
+          case '90':
+            from = new Date(today);
+            from.setDate(today.getDate() - 90);
+            break;
+        }
+
+        datePicker.setDate([from, today]);
+        setActiveQuickButton(range);
+        updateLoadButton();
+      });
+    });
+  }
+
+  function setActiveQuickButton(range) {
+    activeQuickRange = range;
+    document.querySelectorAll('.date-quick').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.range === range);
+    });
+  }
+
+  // ===== Date Picker =====
 
   function initDatePicker() {
     const today = new Date();
@@ -56,81 +172,41 @@ const Filters = (() => {
       defaultDate: [thirtyDaysAgo, today],
       maxDate: today,
       theme: 'dark',
-      onChange: () => updateLoadButton()
-    });
-  }
-
-  function bindEvents() {
-    document.getElementById('bid-select').addEventListener('change', onBIDChange);
-    document.getElementById('load-btn').addEventListener('click', onLoadClick);
-    document.getElementById('chips-clear').addEventListener('click', clearChipFilters);
-
-    // Legend toggles
-    document.getElementById('toggle-parcels').addEventListener('change', e => MapView.toggleParcels(e.target.checked));
-    document.getElementById('toggle-buffer').addEventListener('change', e => MapView.toggleBuffer(e.target.checked));
-    document.getElementById('toggle-heatmap').addEventListener('change', e => {
-      MapView.toggleHeatmap(e.target.checked);
-      if (!e.target.checked) {
-        // Re-plot pins
-        App.replotCurrentData();
+      onChange: () => {
+        setActiveQuickButton('custom');
+        updateLoadButton();
       }
     });
   }
 
-  function onBIDChange() {
-    const select = document.getElementById('bid-select');
-    const idx = parseInt(select.value);
+  // ===== Events =====
 
-    if (isNaN(idx)) {
-      selectedBID = null;
-      MapView.clearPolygonLayers();
-      MapView.clearMarkers();
-      hideBIDInfo();
-      updateLoadButton();
-      return;
-    }
+  function bindEvents() {
+    document.getElementById('load-btn').addEventListener('click', onLoadClick);
 
-    const feature = bidData.features[idx];
-    selectedBID = {
-      feature,
-      idx,
-      name: feature.properties.f_all_bi_2,
-      borough: feature.properties.f_all_bi_1,
-      website: feature.properties.f_all_bi_4,
-      yearFounded: feature.properties.year_found
-    };
-
-    // Process polygon
-    const processed = Polygons.processFeature(feature);
-    if (processed) {
-      selectedBID.processed = processed;
-      MapView.drawBIDPolygon(processed);
-    }
-
-    showBIDInfo();
-    updateLoadButton();
-
-    // Update URL hash
-    updateHash();
+    // Legend layer toggles
+    document.getElementById('toggle-parcels').addEventListener('change', e => MapView.toggleParcels(e.target.checked));
+    document.getElementById('toggle-buffer').addEventListener('change', e => MapView.toggleBuffer(e.target.checked));
+    document.getElementById('toggle-heatmap').addEventListener('change', e => {
+      MapView.toggleHeatmap(e.target.checked);
+      if (!e.target.checked) App.replotCurrentData();
+    });
   }
 
   function onLoadClick() {
     if (!selectedBID || !selectedBID.processed) return;
     const dates = datePicker.selectedDates;
     if (dates.length < 2) return;
-
-    const fromDate = formatDateStr(dates[0]);
-    const toDate = formatDateStr(dates[1]);
-
-    App.loadData(selectedBID, fromDate, toDate);
+    App.loadData(selectedBID, formatDateStr(dates[0]), formatDateStr(dates[1]));
   }
+
+  // ===== BID Info Display =====
 
   function showBIDInfo() {
     const info = document.getElementById('bid-info');
     info.classList.remove('hidden');
     document.getElementById('bid-borough').textContent = selectedBID.borough;
     document.getElementById('bid-year').textContent = selectedBID.yearFounded ? `Est. ${selectedBID.yearFounded}` : '';
-
     const link = document.getElementById('bid-website');
     if (selectedBID.website) {
       link.href = selectedBID.website;
@@ -150,54 +226,8 @@ const Filters = (() => {
     btn.disabled = !selectedBID || dates.length < 2;
   }
 
-  /**
-   * Build complaint type filter chips from loaded data
-   */
-  function buildChips(typeCounts) {
-    const section = document.getElementById('chips-section');
-    const container = document.getElementById('complaint-chips');
-    container.innerHTML = '';
+  // ===== State Getters =====
 
-    // Sort by count descending, take top 15
-    allTypes = Object.entries(typeCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 15);
-
-    activeTypes = new Set(allTypes.map(([type]) => type));
-    // Also include types not in top 15
-    Object.keys(typeCounts).forEach(t => activeTypes.add(t));
-
-    for (const [type, count] of allTypes) {
-      const chip = document.createElement('div');
-      chip.className = 'chip active';
-      chip.dataset.type = type;
-      chip.innerHTML = `${esc(type)} <span class="chip-count">${count}</span>`;
-      chip.addEventListener('click', () => toggleChip(chip, type));
-      container.appendChild(chip);
-    }
-
-    section.classList.remove('hidden');
-  }
-
-  function toggleChip(chipEl, type) {
-    chipEl.classList.toggle('active');
-    if (activeTypes.has(type)) {
-      activeTypes.delete(type);
-    } else {
-      activeTypes.add(type);
-    }
-    App.onChipFilterChange(activeTypes);
-  }
-
-  function clearChipFilters() {
-    document.querySelectorAll('.chip').forEach(c => c.classList.add('active'));
-    activeTypes = new Set();
-    // Re-add all types
-    App.getAllRecords().forEach(r => activeTypes.add(r.complaint_type));
-    App.onChipFilterChange(activeTypes);
-  }
-
-  function getActiveTypes() { return activeTypes; }
   function getSelectedBID() { return selectedBID; }
   function getDateRange() {
     const dates = datePicker ? datePicker.selectedDates : [];
@@ -205,35 +235,24 @@ const Filters = (() => {
     return { from: formatDateStr(dates[0]), to: formatDateStr(dates[1]) };
   }
 
-  /**
-   * Restore state from URL hash
-   */
+  // ===== URL Hash =====
+
   function restoreFromHash() {
     const hash = window.location.hash.replace('#', '');
     if (!hash) return;
-
     const params = new URLSearchParams(hash);
     const bidName = params.get('bid');
     const from = params.get('from');
     const to = params.get('to');
 
     if (bidName && bidData) {
-      const select = document.getElementById('bid-select');
-      for (const feature of bidData.features) {
-        if (feature.properties.f_all_bi_2 === bidName) {
-          const idx = bidData.features.indexOf(feature);
-          select.value = idx;
-          onBIDChange();
-          break;
-        }
-      }
+      const bid = bidList.find(b => b.name === bidName);
+      if (bid) selectBID(bid);
     }
-
     if (from && to && datePicker) {
       datePicker.setDate([from, to]);
+      setActiveQuickButton('custom');
     }
-
-    // Auto-load if both are set
     if (bidName && from && to) {
       setTimeout(() => onLoadClick(), 500);
     }
@@ -252,18 +271,9 @@ const Filters = (() => {
   }
 
   // Helpers
-  function formatDateStr(d) {
-    return d.toISOString().split('T')[0];
-  }
-
-  function esc(str) {
-    const div = document.createElement('div');
-    div.textContent = str || '';
-    return div.innerHTML;
-  }
+  function formatDateStr(d) { return d.toISOString().split('T')[0]; }
 
   return {
-    init, buildChips, getActiveTypes, getSelectedBID, getDateRange,
-    restoreFromHash, updateHash
+    init, getSelectedBID, getDateRange, restoreFromHash, updateHash
   };
 })();
