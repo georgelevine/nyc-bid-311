@@ -142,6 +142,132 @@
       margin: 20px 0;
     }
 
+    /* Spatial split demo */
+    #split-demo-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 20px 0;
+      overflow: hidden;
+    }
+
+    #split-demo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .split-demo-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .split-demo-badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      background: rgba(79, 156, 247, 0.15);
+      color: var(--accent);
+      transition: all 0.3s;
+    }
+
+    .split-demo-badge.warning {
+      background: rgba(251, 146, 60, 0.15);
+      color: var(--orange);
+    }
+
+    .split-demo-badge.split {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--green);
+    }
+
+    #split-demo-canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    #split-demo-controls {
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    #split-demo-label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      margin-top: 0;
+    }
+
+    #split-demo-label strong {
+      color: var(--text-primary);
+      font-size: 16px;
+    }
+
+    #split-demo-slider {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--bg-input);
+      outline: none;
+      cursor: pointer;
+    }
+
+    #split-demo-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--bg-card);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      transition: transform 0.15s;
+    }
+
+    #split-demo-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+
+    #split-demo-status {
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      min-height: 20px;
+      transition: color 0.3s;
+    }
+
+    #split-demo-legend {
+      display: flex;
+      gap: 18px;
+      padding: 10px 18px 14px;
+      flex-wrap: wrap;
+    }
+
+    .sleg-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .sleg-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
     .back-link {
       color: var(--accent);
       text-decoration: none;
@@ -367,6 +493,32 @@
       100 complaints per day across a full month of testing. Phase 2 exists as a safety net for extreme
       cases (e.g., a major event or outage generating a surge of complaints in one district on one day).
     </p>
+
+    <!-- Interactive Spatial Splitting Demo -->
+    <h3>Interactive Demo: How Spatial Splitting Works</h3>
+    <p>
+      Use the slider below to simulate increasing complaint volume for a single day in the
+      <strong>Hudson Square BID</strong> (bounding box: 819m &times; 530m). Watch what happens
+      when the 100-record portal cap is reached.
+    </p>
+
+    <div id="split-demo-container">
+      <div id="split-demo-header">
+        <span class="split-demo-title">Hudson Square BID &mdash; Single Day Simulation</span>
+        <span id="split-demo-calls" class="split-demo-badge">1 API call</span>
+      </div>
+      <canvas id="split-demo-canvas" width="860" height="420"></canvas>
+      <div id="split-demo-controls">
+        <label for="split-demo-slider" id="split-demo-label">Simulated complaints: <strong id="split-demo-count">50</strong></label>
+        <input type="range" id="split-demo-slider" min="10" max="200" value="50" />
+        <div id="split-demo-status"></div>
+      </div>
+      <div id="split-demo-legend">
+        <span class="sleg-item"><span class="sleg-dot" style="background:#60a5fa;"></span> Captured by single request</span>
+        <span class="sleg-item"><span class="sleg-dot" style="background:rgba(248,113,113,0.5);"></span> Truncated (lost)</span>
+        <span class="sleg-item"><span class="sleg-dot" style="background:#34d399;"></span> Recovered by spatial split</span>
+      </div>
+    </div>
 
     <h3>Phase 3: Deduplication &amp; Caching</h3>
     <p>
@@ -747,6 +899,275 @@
       ctx.font = '10px -apple-system, sans-serif';
       ctx.fillText('311 requests in streets = CAPTURED', W * 0.75, H - 20);
     });
+
+    // ============================================================
+    // Interactive Spatial Splitting Demo
+    // ============================================================
+    (() => {
+      const canvas = document.getElementById('split-demo-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const H = canvas.height;
+
+      const slider = document.getElementById('split-demo-slider');
+      const countEl = document.getElementById('split-demo-count');
+      const statusEl = document.getElementById('split-demo-status');
+      const callsEl = document.getElementById('split-demo-calls');
+
+      // Hudson Square BID bounding box
+      const BID = { name: 'Hudson Square', minLat: 40.722357, maxLat: 40.729736, minLng: -74.010752, maxLng: -74.003925 };
+
+      // Canvas drawing area (with padding)
+      const PAD = { top: 30, right: 30, bottom: 30, left: 30 };
+      const drawW = W - PAD.left - PAD.right;
+      const drawH = H - PAD.top - PAD.bottom;
+
+      // Seeded PRNG for deterministic dot placement
+      function mulberry32(seed) {
+        return function() {
+          seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+          let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+          t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      }
+
+      // Generate N deterministic points (stable as slider increases)
+      function generatePoints(n) {
+        const rng = mulberry32(42);
+        const pts = [];
+        for (let i = 0; i < n; i++) {
+          pts.push({ x: rng(), y: rng() });
+        }
+        return pts;
+      }
+
+      // Count points in each quadrant
+      function quadrantCounts(points) {
+        const counts = [0, 0, 0, 0]; // TL, TR, BL, BR
+        for (const p of points) {
+          const col = p.x < 0.5 ? 0 : 1;
+          const row = p.y < 0.5 ? 0 : 1;
+          counts[row * 2 + col]++;
+        }
+        return counts;
+      }
+
+      // Animation state
+      let splitProgress = 0; // 0 = no split, 1 = fully split
+      let targetSplit = 0;
+      let animFrame = null;
+
+      function draw() {
+        const count = parseInt(slider.value);
+        const allPoints = generatePoints(count);
+        const isCapped = count >= 100;
+        const isSplit = count > 100;
+
+        // Animate split progress
+        if (isSplit) targetSplit = 1;
+        else targetSplit = 0;
+        splitProgress += (targetSplit - splitProgress) * 0.15;
+        if (Math.abs(splitProgress - targetSplit) < 0.005) splitProgress = targetSplit;
+
+        // Clear
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#2a2f38';
+        ctx.fillRect(0, 0, W, H);
+
+        // Street grid background (subtle)
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 8; i++) {
+          const x = PAD.left + (drawW / 8) * i;
+          ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + drawH); ctx.stroke();
+        }
+        for (let i = 0; i < 6; i++) {
+          const y = PAD.top + (drawH / 6) * i;
+          ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + drawW, y); ctx.stroke();
+        }
+
+        // Bounding box
+        const boxColor = isCapped && !isSplit ? '#fb923c' : '#fbbf24';
+        ctx.strokeStyle = boxColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(PAD.left, PAD.top, drawW, drawH);
+
+        // BID label (top-left inside box)
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.6)';
+        ctx.font = '10px -apple-system, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Hudson Square BID — 819m × 530m', PAD.left + 8, PAD.top + 16);
+
+        // Coordinate labels
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${BID.maxLat.toFixed(4)}`, PAD.left + 2, PAD.top - 6);
+        ctx.fillText(`${BID.minLat.toFixed(4)}`, PAD.left + 2, PAD.top + drawH + 14);
+        ctx.textAlign = 'right';
+        ctx.fillText(`${BID.minLng.toFixed(4)}`, PAD.left - 4, PAD.top + drawH / 2 + 3);
+        ctx.textAlign = 'left';
+        ctx.fillText(`${BID.maxLng.toFixed(4)}`, PAD.left + drawW + 4, PAD.top + drawH / 2 + 3);
+
+        // Split grid lines (animated)
+        if (splitProgress > 0.01) {
+          ctx.save();
+          ctx.globalAlpha = splitProgress;
+          ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+
+          // Vertical center line
+          const cx = PAD.left + drawW / 2;
+          const cy = PAD.top + drawH / 2;
+          const extV = drawH / 2 * splitProgress;
+          const extH = drawW / 2 * splitProgress;
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - extV);
+          ctx.lineTo(cx, cy + extV);
+          ctx.stroke();
+
+          // Horizontal center line
+          ctx.beginPath();
+          ctx.moveTo(cx - extH, cy);
+          ctx.lineTo(cx + extH, cy);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+
+        // Draw dots
+        const visiblePoints = isCapped && !isSplit ? allPoints.slice(0, 100) : allPoints;
+        const truncatedPoints = isCapped && !isSplit ? allPoints.slice(100) : [];
+        const recoveredPoints = isSplit ? allPoints.slice(100) : [];
+        const basePoints = isSplit ? allPoints.slice(0, 100) : visiblePoints;
+
+        // Truncated dots (faded red) — only show when at exactly 100 (capped but not split)
+        for (const p of truncatedPoints) {
+          const px = PAD.left + p.x * drawW;
+          const py = PAD.top + p.y * drawH;
+          ctx.beginPath();
+          ctx.arc(px, py, 4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(248, 113, 113, 0.35)';
+          ctx.fill();
+        }
+
+        // Base dots (blue)
+        for (const p of basePoints) {
+          const px = PAD.left + p.x * drawW;
+          const py = PAD.top + p.y * drawH;
+          ctx.beginPath();
+          ctx.arc(px, py, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#60a5fa';
+          ctx.fill();
+        }
+
+        // Recovered dots (green, fade in with split)
+        if (splitProgress > 0.01) {
+          for (const p of recoveredPoints) {
+            const px = PAD.left + p.x * drawW;
+            const py = PAD.top + p.y * drawH;
+            ctx.beginPath();
+            ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(52, 211, 153, ${splitProgress * 0.9})`;
+            ctx.fill();
+          }
+        }
+
+        // Quadrant count labels (when split)
+        if (splitProgress > 0.3) {
+          const qc = quadrantCounts(allPoints);
+          const positions = [
+            { x: PAD.left + drawW * 0.25, y: PAD.top + drawH * 0.25 },
+            { x: PAD.left + drawW * 0.75, y: PAD.top + drawH * 0.25 },
+            { x: PAD.left + drawW * 0.25, y: PAD.top + drawH * 0.75 },
+            { x: PAD.left + drawW * 0.75, y: PAD.top + drawH * 0.75 },
+          ];
+
+          ctx.globalAlpha = Math.min(1, (splitProgress - 0.3) / 0.4);
+          for (let i = 0; i < 4; i++) {
+            // Background pill
+            const label = `${qc[i]} pins`;
+            ctx.font = 'bold 13px -apple-system, sans-serif';
+            const tw = ctx.measureText(label).width;
+            const pillW = tw + 16;
+            const pillH = 24;
+
+            ctx.fillStyle = 'rgba(42, 47, 56, 0.85)';
+            ctx.beginPath();
+            ctx.roundRect(positions[i].x - pillW / 2, positions[i].y - pillH / 2, pillW, pillH, 6);
+            ctx.fill();
+            ctx.strokeStyle = qc[i] < 100 ? 'rgba(52, 211, 153, 0.5)' : 'rgba(248, 113, 113, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Text
+            ctx.fillStyle = qc[i] < 100 ? '#34d399' : '#f87171';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, positions[i].x, positions[i].y);
+          }
+          ctx.globalAlpha = 1;
+          ctx.textBaseline = 'alphabetic';
+        }
+
+        // Tile API call labels (when fully split)
+        if (splitProgress > 0.8) {
+          ctx.globalAlpha = Math.min(1, (splitProgress - 0.8) / 0.2);
+          ctx.font = '9px -apple-system, sans-serif';
+          ctx.fillStyle = 'rgba(255,255,255,0.3)';
+          ctx.textAlign = 'center';
+          const tileLabels = ['Tile 1', 'Tile 2', 'Tile 3', 'Tile 4'];
+          const tilePos = [
+            { x: PAD.left + drawW * 0.25, y: PAD.top + 14 },
+            { x: PAD.left + drawW * 0.75, y: PAD.top + 14 },
+            { x: PAD.left + drawW * 0.25, y: PAD.top + drawH / 2 + 14 },
+            { x: PAD.left + drawW * 0.75, y: PAD.top + drawH / 2 + 14 },
+          ];
+          for (let i = 0; i < 4; i++) {
+            ctx.fillText(tileLabels[i], tilePos[i].x, tilePos[i].y);
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        // Update UI
+        countEl.textContent = count;
+
+        if (count < 100) {
+          statusEl.innerHTML = `<span style="color:var(--green);">\u2713</span> <strong>${count} records</strong> \u2014 under the 100-record cap. A single API request captures everything.`;
+          callsEl.textContent = '1 API call';
+          callsEl.className = 'split-demo-badge';
+        } else if (count === 100) {
+          statusEl.innerHTML = `<span style="color:var(--orange);">\u26A0</span> <strong>Exactly 100 records</strong> returned \u2014 hit the portal cap! There may be additional records the API is hiding.`;
+          callsEl.textContent = '1 API call (truncated!)';
+          callsEl.className = 'split-demo-badge warning';
+        } else {
+          const qc = quadrantCounts(allPoints);
+          const allUnder = qc.every(c => c < 100);
+          statusEl.innerHTML = `<span style="color:var(--green);">\u2713</span> Split into 4 tiles \u2014 <strong>${qc.join(' + ')} = ${count}</strong> total records captured.` +
+            (allUnder ? ' All tiles under 100 cap.' : ' <span style="color:var(--orange);">Some tiles still at cap \u2014 could subdivide further.</span>');
+          callsEl.textContent = '4 API calls';
+          callsEl.className = 'split-demo-badge split';
+        }
+
+        // Continue animating if needed
+        if (Math.abs(splitProgress - targetSplit) > 0.005) {
+          animFrame = requestAnimationFrame(draw);
+        }
+      }
+
+      slider.addEventListener('input', () => {
+        if (animFrame) cancelAnimationFrame(animFrame);
+        animFrame = requestAnimationFrame(draw);
+      });
+
+      // Initial draw
+      draw();
+    })();
   </script>
 </body>
 </html>
