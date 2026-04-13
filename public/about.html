@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About &amp; Methodology — NYC BID 311 Explorer</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* About page specific styles */
+    body { background: var(--bg-dark); }
+
+    .about-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .about-container h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .about-subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 40px;
+    }
+
+    .about-container h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 48px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    .about-container h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      color: var(--accent);
+    }
+
+    .about-container p, .about-container li {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .about-container ul, .about-container ol {
+      padding-left: 20px;
+      margin-bottom: 16px;
+    }
+
+    .about-container li { margin-bottom: 6px; }
+
+    .about-container code {
+      background: var(--bg-input);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--accent);
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    }
+
+    .about-container pre {
+      background: var(--bg-input);
+      padding: 16px;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-primary);
+      margin: 12px 0;
+      border: 1px solid var(--border);
+    }
+
+    .about-container pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 12px;
+    }
+
+    .data-table th, .data-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table th {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .data-table td { color: var(--text-secondary); }
+
+    .data-table .check { color: var(--green); }
+    .data-table .cross { color: var(--red); }
+
+    .callout {
+      background: var(--bg-card);
+      border-left: 3px solid var(--accent);
+      padding: 14px 18px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+
+    .callout.warning { border-left-color: var(--orange); }
+    .callout.success { border-left-color: var(--green); }
+
+    .stat-highlight {
+      display: inline-block;
+      background: rgba(79, 156, 247, 0.1);
+      border: 1px solid rgba(79, 156, 247, 0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    /* Buffer visualization */
+    #buffer-viz {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 20px 0;
+    }
+
+    .back-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    .expansion-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .expansion-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .expansion-card h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .expansion-card p {
+      font-size: 12px;
+      margin-bottom: 0;
+    }
+
+    @media (max-width: 640px) {
+      .expansion-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header id="app-header">
+    <div class="header-left">
+      <h1>NYC BID 311 Explorer</h1>
+      <span class="header-subtitle">About &amp; Methodology</span>
+    </div>
+    <div class="header-right">
+      <a href="index.html" class="header-link">&larr; Back to Map</a>
+    </div>
+  </header>
+
+  <div class="about-container">
+    <a href="index.html" class="back-link">&larr; Back to Explorer</a>
+
+    <h1>About &amp; Methodology</h1>
+    <p class="about-subtitle">How this tool works, what we discovered building it, and why it matters.</p>
+
+    <!-- ============================================ -->
+    <h2>1. Why This Tool Exists</h2>
+    <p>
+      NYC's 76 Business Improvement Districts (BIDs) manage streetscape, sanitation, and public safety
+      in commercial corridors across all five boroughs. To understand quality-of-life issues in their
+      district, BID managers need to see 311 complaint patterns — what types of complaints are filed,
+      where they cluster, how quickly they're resolved, and how trends change over time.
+    </p>
+    <p>
+      The existing NYC 311 portal at <code>portal.311.nyc.gov/check-status/</code> offers filters for
+      borough, address radius, problem type, and date range — but <strong>not by BID</strong>. There
+      is no way to draw a BID boundary and see all complaints within it. This tool fills that gap.
+    </p>
+
+    <h3>Existing Portal Filter Parameters</h3>
+    <table class="data-table">
+      <tr><th>Parameter</th><th>Type</th><th>Limitation</th></tr>
+      <tr><td><code>borough</code></td><td>Dropdown</td><td>Too broad — a borough contains dozens of BIDs</td></tr>
+      <tr><td><code>minlatitude / maxlatitude / minlongitude / maxlongitude</code></td><td>Bounding box</td><td>Rectangular only, can't follow BID boundaries</td></tr>
+      <tr><td><code>fromdate / todate</code></td><td>Date range</td><td>Works well, no issues</td></tr>
+      <tr><td><code>problemarea / problem</code></td><td>CRM option set IDs</td><td>Internal Dynamics 365 values, not documented</td></tr>
+      <tr><td><code>communitydistrict</code></td><td>Text</td><td>BIDs don't align with community districts</td></tr>
+    </table>
+    <p>
+      None of these parameters support polygon-based spatial queries. A BID manager would need to
+      manually adjust a bounding box, visually filter results, and repeat for each date range — an
+      impractical workflow for ongoing monitoring.
+    </p>
+
+    <!-- ============================================ -->
+    <h2>2. Data Sources</h2>
+
+    <h3>NYC Open Data — 311 Service Requests</h3>
+    <p>
+      The primary data source is the <strong>NYC Open Data 311 Service Requests</strong> dataset,
+      containing over 20 million records since 2010. It is updated daily, provides rich metadata per
+      record, and offers a fully public SODA API with spatial query support.
+    </p>
+    <ul>
+      <li>Endpoint: <code>data.cityofnewyork.us/resource/erm2-nwe9.json</code></li>
+      <li>CORS: <span class="stat-highlight">Fully open</span> (<code>Access-Control-Allow-Origin: *</code>)</li>
+      <li>Spatial queries: <code>within_box()</code>, <code>within_circle()</code>, <code>within_polygon()</code></li>
+      <li>Record limit: None (paginated, unlimited)</li>
+    </ul>
+
+    <h3>NYC 311 Portal — Internal API</h3>
+    <p>
+      The 311 portal at <code>portal.311.nyc.gov</code> runs on Microsoft Dynamics 365 Power Apps
+      Portals. It has an internal pin-fetching endpoint used by its map interface.
+    </p>
+    <ul>
+      <li>Endpoint: <code>portal.311.nyc.gov/entity-pin-fetch-service-requests/</code></li>
+      <li>CORS: <span class="stat-highlight" style="color: var(--red); border-color: rgba(248,113,113,0.2); background: rgba(248,113,113,0.1);">Locked</span> to <code>www1.nyc.gov</code> only</li>
+      <li>Record limit: <strong>100 records maximum, no pagination</strong></li>
+      <li>Response: Returns HTML page wrapping JSON data</li>
+    </ul>
+
+    <h3>Field Comparison</h3>
+    <table class="data-table">
+      <tr><th>Field</th><th>Open Data</th><th>Portal</th></tr>
+      <tr><td>Unique Identifier</td><td><code>unique_key</code> (e.g., 64365278)</td><td><code>srnumber</code> (e.g., 311-22260438)</td></tr>
+      <tr><td>Complaint Type</td><td class="check">complaint_type</td><td class="check">data.problem</td></tr>
+      <tr><td>Descriptor/Details</td><td class="check">descriptor</td><td class="cross">Detail page only</td></tr>
+      <tr><td>Status</td><td class="check">status</td><td class="check">data.status</td></tr>
+      <tr><td>Agency</td><td class="check">agency, agency_name</td><td class="cross">Not available</td></tr>
+      <tr><td>Created Date</td><td class="check">created_date (UTC)</td><td class="check">submitteddate (Eastern)</td></tr>
+      <tr><td>Closed Date</td><td class="check">closed_date</td><td class="cross">Detail page only</td></tr>
+      <tr><td>Resolution</td><td class="check">resolution_description</td><td class="cross">Detail page only</td></tr>
+      <tr><td>Coordinates</td><td class="check">lat/lng + state plane</td><td class="check">lat/lng</td></tr>
+      <tr><td>Address</td><td class="check">Structured fields</td><td class="check">Combined string</td></tr>
+      <tr><td>BBL (Parcel ID)</td><td class="check">bbl</td><td class="cross">Not available</td></tr>
+      <tr><td>Community Board</td><td class="check">community_board</td><td class="cross">Not available</td></tr>
+      <tr><td>Channel</td><td class="check">open_data_channel_type</td><td class="cross">Not available</td></tr>
+      <tr><td>Portal Detail Link</td><td class="cross">Not available</td><td class="check">CRM GUID for /sr-details/</td></tr>
+    </table>
+
+    <!-- ============================================ -->
+    <h2>3. How We Discovered the Portal API</h2>
+    <p>
+      The 311 portal's internal API is not documented. We discovered it by reverse-engineering the
+      JavaScript on the <code>/check-status/</code> page. The portal uses an Esri ArcGIS map with
+      clustered markers, and a <code>FilterManager</code> class that aggregates multiple filter types
+      before sending requests to the backend.
+    </p>
+    <p>
+      The key endpoint is <code>/entity-pin-fetch-service-requests/</code>, which accepts GET
+      parameters for borough, date range, bounding box coordinates, and CRM-internal option set IDs
+      for problem area and problem type. Filter option values are loaded dynamically from:
+    </p>
+    <ul>
+      <li><code>/get-optionset-filter-options/?entity=n311_srproblem&amp;attribute=n311_problemareaglobal</code></li>
+      <li><code>/get-lookup-filter-options/?lookupentity=n311_srproblem&amp;lookupidattribute=n311_srproblemid&amp;...</code></li>
+    </ul>
+
+    <p>Each pin in the response contains:</p>
+    <pre><code>{
+  "id": "70f3d629-59e0-ef11-95f5-7c1e52e4043a",  // Dynamics 365 CRM GUID
+  "label": "Noise - Street/Sidewalk",
+  "sublabel": "616 WEST 184 STREET, MANHATTAN (NEW YORK), NY, 10033",
+  "latitude": "40.8513685798",
+  "longitude": "-73.9334866503",
+  "data": {
+    "address": "616 WEST 184 STREET, MANHATTAN (NEW YORK), NY, 10033",
+    "problem": "Noise - Street/Sidewalk",
+    "submitteddate": "2/1/2025 4:59:48 AM",
+    "status": "Closed",
+    "srnumber": "311-21789902"
+  }
+}</code></pre>
+
+    <h3>Portal Limitations</h3>
+    <div class="callout warning">
+      <strong>CORS Restriction:</strong> The portal returns <code>Access-Control-Allow-Origin: https://www1.nyc.gov</code>,
+      meaning browser-side JavaScript from any other domain is blocked. This tool uses a server-side proxy
+      to relay requests.
+    </div>
+    <div class="callout warning">
+      <strong>100-Record Cap:</strong> The endpoint returns at most 100 pins per request, sorted by most
+      recent. There are no pagination parameters — <code>page</code>, <code>offset</code>, <code>skip</code>,
+      and <code>$skip</code> were all tested and ignored. For a BID with thousands of complaints in a date
+      range, the portal returns only the 100 most recent.
+    </div>
+    <div class="callout warning">
+      <strong>HTML Response:</strong> Despite the AJAX-style calling pattern, the endpoint returns a full
+      HTML page (Content-Type: text/html, ~50KB) with JSON data embedded. The proxy must parse this to
+      extract usable data.
+    </div>
+
+    <!-- ============================================ -->
+    <h2>4. Record Matching: No Primary Key</h2>
+    <p>
+      The two data sources use <strong>completely different identifier systems</strong> with no crosswalk:
+    </p>
+    <ul>
+      <li>Open Data: <code>unique_key</code> — numeric, e.g., <strong>64365278</strong> (64 million range for 2025 records)</li>
+      <li>Portal: <code>srnumber</code> — prefixed, e.g., <strong>311-22260438</strong> (22 million range for the same period)</li>
+    </ul>
+    <p>
+      Initial hypothesis: strip "311-" from the SR number to get the unique_key. <strong>This is wrong.</strong>
+      The numbers are in entirely different ranges and represent independent ID systems.
+    </p>
+
+    <h3>Composite Key Matching</h3>
+    <p>
+      Through systematic testing of 200+ records across Manhattan and Brooklyn, we developed a composite
+      key matching strategy:
+    </p>
+    <ol>
+      <li><strong>Timestamp alignment:</strong> The two sources store timestamps with a consistent offset equal
+        to the Eastern Time UTC offset (4-5 hours depending on DST). Empirically verified: subtracting the
+        ET offset from the portal's numeric timestamp produces the Open Data timestamp exactly. We apply this
+        correction and allow a <span class="stat-highlight">&pm;3 minute window</span> to handle timestamp
+        rounding in certain complaint types.</li>
+      <li><strong>Complaint type matching:</strong> Case-insensitive comparison. Portal may use "Heat/Hot Water"
+        while Open Data uses "HEAT/HOT WATER".</li>
+      <li><strong>Address verification:</strong> Extract street name (remove house number and borough suffix)
+        and check for substring match.</li>
+    </ol>
+
+    <h3>Verified Match Rates</h3>
+    <table class="data-table">
+      <tr><th>Test</th><th>Method</th><th>Match Rate</th></tr>
+      <tr><td>Manhattan, exact timestamp</td><td>Timestamp + type + address</td><td>80/100 (80%)</td></tr>
+      <tr><td>Manhattan, 3-min window</td><td>Fuzzy timestamp + case-insensitive</td><td>91/100 (91%)</td></tr>
+      <tr><td>Brooklyn, 3-min window</td><td>Fuzzy timestamp + case-insensitive</td><td>91/100 (91%)</td></tr>
+      <tr><td>Reverse (OD &rarr; Portal)</td><td>Same composite key</td><td>96/102 (94%)</td></tr>
+    </table>
+
+    <h3>Why ~9% Don't Match</h3>
+    <ul>
+      <li><strong>~7-8% genuinely absent from Open Data</strong> — likely NYPD-sensitive or privacy-withheld records</li>
+      <li><strong>Timestamp rounding:</strong> Generic "Noise", "Food Poisoning", "Street Light Condition" have seconds zeroed out in Open Data</li>
+      <li><strong>Case mismatches</strong> in complaint types (e.g., title case vs ALL CAPS)</li>
+      <li><strong>Intersection records</strong> with <code>incident_address = NULL</code> in Open Data</li>
+    </ul>
+
+    <!-- ============================================ -->
+    <h2>5. Why Open Data Is the Source of Truth</h2>
+    <div class="callout success">
+      Open Data is the primary data source for this tool. Here's why:
+    </div>
+    <ul>
+      <li><strong>CORS fully open</strong> — browser can call it directly, no proxy needed</li>
+      <li><strong>No record limit</strong> — paginated queries return all matching results (vs. portal's 100-record cap)</li>
+      <li><strong>Richer fields</strong> — agency, descriptor, resolution, BBL, community board, channel</li>
+      <li><strong>Spatial query support</strong> — <code>within_box()</code> lets us query by bounding box natively</li>
+      <li><strong>Parcel-level geocoding</strong> — 95% of records have BBL (Borough-Block-Lot), 100% have state plane coordinates</li>
+      <li><strong>20+ million records</strong> going back to 2010, updated daily</li>
+    </ul>
+    <p>
+      The portal's value is its <strong>CRM GUID</strong> which enables deep-linking to the
+      <code>/sr-details/</code> page for full agency response details. When records match (~91%),
+      we include this link in the map popup.
+    </p>
+
+    <!-- ============================================ -->
+    <h2>6. The BID Polygon Challenge</h2>
+    <p>
+      The BID boundary dataset from NYC Open Data (<code>data.cityofnewyork.us/resource/7jdm-inj8</code>)
+      does not contain district boundaries. Instead, it contains <strong>tax lot parcel polygons</strong> —
+      the individual building footprints within each BID. Streets, sidewalks, and public rights-of-way
+      are excluded.
+    </p>
+
+    <h3>The Problem</h3>
+    <table class="data-table">
+      <tr><th>BID</th><th>Polygon Rings</th><th>Area Covered</th><th>Street Gaps</th></tr>
+      <tr><td>Times Square Alliance</td><td>45</td><td>36%</td><td><strong>64%</strong></td></tr>
+      <tr><td>Alliance for Downtown NY</td><td>119</td><td>37%</td><td><strong>63%</strong></td></tr>
+      <tr><td>Village Alliance</td><td>40</td><td>12%</td><td><strong>88%</strong></td></tr>
+      <tr><td>Union Square Partnership</td><td>20</td><td>13%</td><td><strong>87%</strong></td></tr>
+      <tr><td>Diamond District</td><td>3</td><td>31%</td><td><strong>69%</strong></td></tr>
+    </table>
+    <p>
+      If we used the raw polygons for point-in-polygon filtering, we would miss <strong>60-88% of
+      311 requests</strong> — especially street-level complaints (noise, potholes, sidewalk conditions,
+      encampments) which are geocoded to street centerlines.
+    </p>
+
+    <h3>The Solution: Polygon Buffering</h3>
+    <p>
+      We buffer each BID's parcel polygons by <strong>30 meters</strong> (approximately half the width
+      of a typical NYC street) using Turf.js. The buffered shapes overlap across streets, creating a
+      continuous boundary that covers the full district area.
+    </p>
+
+    <canvas id="buffer-viz" width="860" height="350"></canvas>
+
+    <table class="data-table">
+      <tr><th>Buffer Distance</th><th>Gap Coverage</th><th>Notes</th></tr>
+      <tr><td>10m</td><td>55%</td><td>Too narrow for wide avenues</td></tr>
+      <tr><td>15m</td><td>70%</td><td>Covers most side streets</td></tr>
+      <tr><td>20m</td><td>76%</td><td>Good balance</td></tr>
+      <tr><td>30m</td><td>84%</td><td><strong>Used in this tool</strong> — covers avenues</td></tr>
+      <tr><td>50m</td><td>93%</td><td>Risk of including adjacent non-BID areas</td></tr>
+    </table>
+
+    <p>
+      On the map, you can see both layers: the <strong style="color: #4f9cf7;">blue dashed outlines</strong>
+      are the raw tax lot parcels, and the <strong style="color: #fbbf24;">yellow solid outline</strong>
+      is the 30m-buffered boundary used for filtering.
+    </p>
+
+    <!-- ============================================ -->
+    <h2>7. Coordinate Accuracy</h2>
+    <p>
+      The two data sources geocode addresses independently, producing slightly different coordinates
+      for the same complaint:
+    </p>
+    <table class="data-table">
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Mean distance between sources</td><td><strong>37.68m</strong></td></tr>
+      <tr><td>Max distance</td><td>89m</td></tr>
+      <tr><td>Within 50m</td><td>85% of records</td></tr>
+      <tr><td>Within 100m</td><td>100% of records</td></tr>
+    </table>
+    <p>
+      Open Data provides <strong>parcel-level geocoding</strong>: 95% of records have a BBL
+      (Borough-Block-Lot) identifier, and 100% have state plane coordinates. This means Open Data
+      coordinates point to the actual tax lot associated with the address.
+    </p>
+    <p>
+      The portal appears to use a different geocoding service that produces rooftop or street-centerline
+      coordinates. For map display, we use Open Data coordinates as primary (matched and OD-only records)
+      and portal coordinates only for portal-only records.
+    </p>
+
+    <!-- ============================================ -->
+    <h2>8. How the Map Works</h2>
+    <h3>Data Flow</h3>
+    <ol>
+      <li>User selects a BID from the dropdown</li>
+      <li>The raw tax lot parcels are buffered by 30m and merged into a single boundary</li>
+      <li>A bounding box (with 50m padding) is computed around the buffered boundary</li>
+      <li>Two parallel API calls are made:
+        <ul>
+          <li><strong>Open Data</strong> (direct from browser): SODA <code>within_box()</code> query with date range, paginated</li>
+          <li><strong>Portal</strong> (via server proxy): Pin-fetch with bounding box coordinates, max 100 results</li>
+        </ul>
+      </li>
+      <li>Returned points are filtered client-side using Turf.js <code>booleanPointInPolygon()</code> against the buffered boundary</li>
+      <li>Records are matched between sources using the composite key (timestamp + type + address)</li>
+      <li>Results are classified as Matched (both), Open Data only, or Portal only</li>
+      <li>Pins are plotted with color-coding by complaint type (fill) and source (border)</li>
+    </ol>
+
+    <h3>Pin Types</h3>
+    <table class="data-table">
+      <tr><th>Pin Border</th><th>Source</th><th>Expected %</th><th>What You Get</th></tr>
+      <tr><td><span style="color: var(--green);">&bull;</span> Green</td><td>Matched (both)</td><td>~85%</td><td>Full Open Data fields + portal detail link</td></tr>
+      <tr><td><span style="color: var(--blue);">&bull;</span> Blue</td><td>Open Data only</td><td>~9%</td><td>Rich fields, no portal link</td></tr>
+      <tr><td><span style="color: var(--orange);">&bull;</span> Orange</td><td>Portal only</td><td>~6%</td><td>Basic fields + portal detail link</td></tr>
+    </table>
+
+    <!-- ============================================ -->
+    <h2>9. Future Expansion</h2>
+    <p>
+      This tool's architecture — BID polygons + geospatial data overlay — can be extended to incorporate
+      other NYC datasets for a comprehensive district dashboard:
+    </p>
+
+    <div class="expansion-grid">
+      <div class="expansion-card">
+        <h4>NYPD Crime Data</h4>
+        <p>CompStat crime statistics and 911 call data, available on NYC Open Data. Would show crime
+          patterns alongside quality-of-life complaints, enabling BIDs to correlate public safety with
+          311 activity.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>DOB Building Permits</h4>
+        <p>Department of Buildings permit filings and violations. Useful for BIDs tracking construction
+          activity, scaffolding complaints, and development patterns in their district.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>HPD Housing Violations</h4>
+        <p>Housing Preservation &amp; Development violation data. Relevant for BIDs with residential
+          components to understand building condition and habitability issues.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>DEP Environmental Data</h4>
+        <p>Water quality, noise monitoring, and air quality data from the Department of Environmental
+          Protection. Would add an environmental health layer to the BID dashboard.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>BID-to-BID Comparison</h4>
+        <p>Side-by-side comparison mode showing two BIDs with normalized metrics (complaints per acre,
+          time to resolution, complaint type distribution) for benchmarking.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>Time-Series Analysis</h4>
+        <p>Historical trend analysis showing how complaint patterns change over months and years.
+          Seasonal analysis, year-over-year comparisons, and anomaly detection.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>Real-Time Streaming</h4>
+        <p>Integration with the Socrata streaming API for near-real-time complaint monitoring.
+          Push notifications when new complaints are filed within a BID.</p>
+      </div>
+      <div class="expansion-card">
+        <h4>Exportable Reports</h4>
+        <p>PDF and PowerPoint report generation for BID board meetings, with auto-generated
+          charts, maps, and executive summaries of complaint activity.</p>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <h2>10. Technical Stack</h2>
+    <table class="data-table">
+      <tr><th>Component</th><th>Technology</th><th>Why</th></tr>
+      <tr><td>Server</td><td>Node.js + Express</td><td>Proxies portal API (CORS bypass), serves static files, easy deployment</td></tr>
+      <tr><td>Map</td><td>Leaflet + MarkerCluster</td><td>Free, lightweight, handles thousands of pins with clustering</td></tr>
+      <tr><td>Spatial Processing</td><td>Turf.js</td><td>Client-side polygon buffering, point-in-polygon, bounding box computation</td></tr>
+      <tr><td>Charts</td><td>Chart.js</td><td>Lightweight charting with no build step</td></tr>
+      <tr><td>Date Picker</td><td>Flatpickr</td><td>Tiny, range-mode support, dark theme</td></tr>
+      <tr><td>Heatmap</td><td>Leaflet.heat</td><td>Density visualization layer</td></tr>
+      <tr><td>Primary API</td><td>NYC Open Data SODA</td><td>CORS open, unlimited records, spatial queries</td></tr>
+      <tr><td>Secondary API</td><td>311 Portal (proxied)</td><td>Portal detail links, supplementary data</td></tr>
+    </table>
+
+    <p style="margin-top: 40px; color: var(--text-muted); font-size: 12px; text-align: center;">
+      Built with Claude &middot; Data sourced from NYC Open Data and the NYC 311 Portal
+    </p>
+  </div>
+
+  <script>
+    // Draw buffer visualization on canvas
+    document.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('buffer-viz');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const H = canvas.height;
+
+      // Background
+      ctx.fillStyle = '#2a2f38';
+      ctx.fillRect(0, 0, W, H);
+
+      // Title
+      ctx.fillStyle = '#9aa0a6';
+      ctx.font = '13px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+
+      // LEFT SIDE: Raw parcels
+      ctx.fillText('Raw Tax Lot Parcels', W * 0.25, 28);
+
+      const parcels = [
+        { x: 50, y: 50, w: 120, h: 100 },
+        { x: 200, y: 50, w: 130, h: 100 },
+        { x: 50, y: 185, w: 120, h: 110 },
+        { x: 200, y: 185, w: 130, h: 110 },
+      ];
+
+      // Draw parcels
+      for (const p of parcels) {
+        ctx.fillStyle = 'rgba(79, 156, 247, 0.15)';
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.strokeStyle = '#4f9cf7';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(p.x, p.y, p.w, p.h);
+      }
+      ctx.setLineDash([]);
+
+      // Label streets
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('STREET', 190, 165);
+      ctx.save();
+      ctx.translate(185, 175);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('AVE', 0, -3);
+      ctx.restore();
+
+      // X markers for missed complaints
+      const missed = [
+        { x: 110, y: 162 }, { x: 265, y: 162 },
+        { x: 185, y: 100 }, { x: 185, y: 240 },
+      ];
+      ctx.fillStyle = '#f87171';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      for (const m of missed) {
+        ctx.fillText('X', m.x, m.y);
+      }
+
+      ctx.fillStyle = '#f87171';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('311 requests in streets = MISSED', W * 0.25, H - 20);
+
+      // Arrow
+      ctx.fillStyle = '#9aa0a6';
+      ctx.font = '28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('\u2192', W * 0.5, H * 0.5);
+
+      // RIGHT SIDE: Buffered
+      ctx.fillStyle = '#9aa0a6';
+      ctx.font = '13px -apple-system, sans-serif';
+      ctx.fillText('30m Buffered Boundary', W * 0.75, 28);
+
+      const offsetX = W * 0.5 + 30;
+
+      // Draw expanded/buffered outline
+      ctx.beginPath();
+      ctx.roundRect(offsetX + 30, 35, 310, 275, 20);
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
+      ctx.fill();
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw parcels inside
+      const rightParcels = [
+        { x: offsetX + 50, y: 50, w: 120, h: 100 },
+        { x: offsetX + 200, y: 50, w: 130, h: 100 },
+        { x: offsetX + 50, y: 185, w: 120, h: 110 },
+        { x: offsetX + 200, y: 185, w: 130, h: 110 },
+      ];
+
+      for (const p of rightParcels) {
+        ctx.fillStyle = 'rgba(79, 156, 247, 0.1)';
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.strokeStyle = 'rgba(79, 156, 247, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(p.x, p.y, p.w, p.h);
+      }
+      ctx.setLineDash([]);
+
+      // Check marks for captured complaints
+      const captured = [
+        { x: offsetX + 110, y: 165 }, { x: offsetX + 265, y: 165 },
+        { x: offsetX + 185, y: 100 }, { x: offsetX + 185, y: 245 },
+      ];
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      for (const c of captured) {
+        ctx.fillText('\u2713', c.x, c.y);
+      }
+
+      ctx.fillStyle = '#34d399';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('311 requests in streets = CAPTURED', W * 0.75, H - 20);
+    });
+  </script>
+</body>
+</html>
