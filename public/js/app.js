@@ -31,7 +31,7 @@ const App = (() => {
    * Main data loading function — called by Filters when user clicks Load
    */
   async function loadData(selectedBID, fromDate, toDate) {
-    showLoading('Fetching 311 data from Open Data...');
+    showLoading('Fetching 311 data...');
     hideError();
     MapView.clearMarkers();
 
@@ -43,6 +43,7 @@ const App = (() => {
 
     try {
       // Fetch both sources in parallel
+      // Portal uses adaptive endpoint: daily windows + spatial re-split for capped days
       const [odRecords, portalPins] = await Promise.all([
         Data.fetch311OpenData(processed.paddedBbox, fromDate, toDate, (count) => {
           showLoading(`Loading Open Data... ${count.toLocaleString()} records`);

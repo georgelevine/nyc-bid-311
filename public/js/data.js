@@ -95,8 +95,9 @@ const Data = (() => {
   }
 
   /**
-   * Fetch 311 requests from portal via our proxy.
-   * Uses bounding box coordinates.
+   * Fetch 311 requests from portal via adaptive proxy.
+   * Server-side: breaks date range into daily windows, re-splits capped days
+   * spatially, deduplicates, and returns all results in one response.
    */
   async function fetch311Portal(paddedBbox, fromDate, toDate) {
     const [west, south, east, north] = paddedBbox;
@@ -110,13 +111,20 @@ const Data = (() => {
     });
 
     try {
-      const resp = await fetch(`${PORTAL_PROXY_URL}?${params}`);
+      const resp = await fetch(`/api/portal-pins-adaptive?${params}`);
       if (!resp.ok) throw new Error(`Portal fetch failed: ${resp.status}`);
       const data = await resp.json();
 
       if (data.error) {
         console.warn('Portal API returned error:', data.error);
         return [];
+      }
+
+      if (data.stats) {
+        console.log(`Portal adaptive: ${data.stats.total_pins} pins from ${data.stats.total_calls} calls` +
+          (data.stats.phase2_capped_days > 0
+            ? ` (${data.stats.phase2_capped_days} days re-split spatially)`
+            : ''));
       }
 
       return (data.pins || []).map(p => ({
