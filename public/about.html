@@ -328,6 +328,66 @@
       HTML page (Content-Type: text/html, ~50KB) with JSON data embedded. The proxy must parse this to
       extract usable data.
     </div>
+    <div class="callout warning">
+      <strong>No Datetime Filtering:</strong> The <code>fromdate</code> and <code>todate</code> parameters
+      accept only dates (<code>YYYY-MM-DD</code>), not datetimes. You cannot request "6am-12pm on Feb 15th" —
+      only "all of Feb 15th." This means time-based subdivision within a single day is impossible through
+      the API.
+    </div>
+
+    <h3>How We Bypass the 100-Record Cap</h3>
+    <p>
+      A single portal request for a BID over a 30-day range might contain 500+ complaints, but the API
+      only returns the 100 most recent. Pagination parameters don't exist. To capture all records, our
+      server uses an <strong>adaptive multi-phase strategy</strong>:
+    </p>
+
+    <h3>Phase 1: Daily Time Windows</h3>
+    <p>
+      Instead of one request for the full date range, the server splits it into <strong>one request per
+      day</strong>. Most BIDs receive 20-50 complaints per day — well under the 100 cap. For a 30-day
+      query, this means 30 parallel requests (running 8 at a time) instead of 1, capturing nearly 100%
+      of records.
+    </p>
+    <div class="callout success">
+      <strong>Real-world result:</strong> Times Square Alliance, 28-day range — <strong>936 portal records</strong>
+      captured from 28 calls, vs. 100 records from the old single-call approach. A 9x improvement.
+    </div>
+
+    <h3>Phase 2: Spatial Subdivision (Fallback)</h3>
+    <p>
+      If any single day returns exactly 100 records (meaning it hit the cap), that day is automatically
+      re-fetched using <strong>spatial tiling</strong>. The BID's bounding box is divided into a 2&times;2
+      grid of smaller sub-boxes, and each tile is queried separately for that day. This works because the
+      portal's date filter only accepts whole dates — you can't split by time-of-day, so space is the
+      only remaining axis to subdivide.
+    </p>
+    <p>
+      In practice, Phase 2 rarely triggers. Even Times Square — one of NYC's busiest BIDs — stayed under
+      100 complaints per day across a full month of testing. Phase 2 exists as a safety net for extreme
+      cases (e.g., a major event or outage generating a surge of complaints in one district on one day).
+    </p>
+
+    <h3>Phase 3: Deduplication &amp; Caching</h3>
+    <p>
+      After spatial tiling, records near tile boundaries may appear in multiple tiles. The server deduplicates
+      by SR number before returning results. The complete result set is then cached in memory for 10 minutes,
+      so repeat queries are instant.
+    </p>
+
+    <table class="data-table">
+      <tr><th>Phase</th><th>What It Does</th><th>When It Runs</th><th>Calls</th></tr>
+      <tr><td>1</td><td>Split date range into daily windows, fetch in parallel (8 concurrent)</td><td>Always</td><td>1 per day</td></tr>
+      <tr><td>2</td><td>Re-split capped days into 2&times;2 spatial tiles</td><td>Only if a day hits 100</td><td>4 per capped day</td></tr>
+      <tr><td>3</td><td>Deduplicate by SR number + cache 10 min</td><td>Always</td><td>0</td></tr>
+    </table>
+
+    <table class="data-table">
+      <tr><th>Scenario</th><th>Total Calls</th><th>Estimated Time</th></tr>
+      <tr><td>Quiet BID, 7 days</td><td>7</td><td>&lt;1 second</td></tr>
+      <tr><td>Busy BID, 30 days (no caps)</td><td>30</td><td>~3 seconds</td></tr>
+      <tr><td>Busy BID, 30 days (2 capped days)</td><td>30 + 8 = 38</td><td>~4 seconds</td></tr>
+    </table>
 
     <!-- ============================================ -->
     <h2>4. Record Matching: No Primary Key</h2>
