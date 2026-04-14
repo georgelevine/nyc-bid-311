@@ -164,7 +164,7 @@ function spatialSubdivide(bbox, divisions) {
 // ============================================================
 
 app.get('/api/portal-pins-adaptive', async (req, res) => {
-  const { minlatitude, minlongitude, maxlatitude, maxlongitude, fromdate, todate } = req.query;
+  const { minlatitude, minlongitude, maxlatitude, maxlongitude, fromdate, todate, refresh } = req.query;
 
   if (!fromdate || !todate) {
     return res.status(400).json({ error: 'fromdate and todate required' });
@@ -172,11 +172,13 @@ app.get('/api/portal-pins-adaptive', async (req, res) => {
 
   const bbox = { minlatitude, minlongitude, maxlatitude, maxlongitude };
 
-  // Check cache
+  // Check cache — skip entirely if the client requested a fresh pull
   const ck = cacheKey({ bbox, fromdate, todate, endpoint: 'adaptive' });
-  const cached = getCached(ck);
-  if (cached) {
-    return res.json(cached);
+  if (!refresh) {
+    const cached = getCached(ck);
+    if (cached) return res.json(cached);
+  } else {
+    cache.delete(ck);
   }
 
   try {

@@ -99,7 +99,7 @@ const Data = (() => {
    * Server-side: breaks date range into daily windows, re-splits capped days
    * spatially, deduplicates, and returns all results in one response.
    */
-  async function fetch311Portal(paddedBbox, fromDate, toDate) {
+  async function fetch311Portal(paddedBbox, fromDate, toDate, opts = {}) {
     const [west, south, east, north] = paddedBbox;
     const params = new URLSearchParams({
       minlatitude: south,
@@ -109,6 +109,7 @@ const Data = (() => {
       fromdate: fromDate,
       todate: toDate
     });
+    if (opts.refresh) params.append('refresh', '1');
 
     try {
       const resp = await fetch(`/api/portal-pins-adaptive?${params}`);

@@ -14,7 +14,105 @@ const Filters = (() => {
     initBIDSearch();
     initDatePicker();
     initQuickDates();
+    initDrawer();
     bindEvents();
+  }
+
+  // ===== Drawer / Sidebar state =====
+  // Desktop: sidebar has data-state="open|closed" (toggleable via header button)
+  // Mobile: sidebar has data-state="collapsed|half|full"; handle cycles states.
+
+  function isMobile() { return window.matchMedia('(max-width: 768px)').matches; }
+
+  function setSidebarState(state) {
+    document.getElementById('sidebar').dataset.state = state;
+    // Invalidate Leaflet size when sidebar width changes on desktop
+    setTimeout(() => {
+      if (window.MapView && MapView.getMap) {
+        try { MapView.getMap().invalidateSize(); } catch (e) {}
+      }
+    }, 260);
+  }
+
+  function initDrawer() {
+    const handle = document.getElementById('drawer-handle');
+    const toggle = document.getElementById('sidebar-toggle');
+
+    if (handle) {
+      handle.addEventListener('click', () => {
+        if (!isMobile()) return;
+        const cur = document.getElementById('sidebar').dataset.state || 'half';
+        const next = cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'collapsed';
+        setSidebarState(next);
+      });
+    }
+
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const sidebar = document.getElementById('sidebar');
+        if (isMobile()) {
+          const cur = sidebar.dataset.state || 'collapsed';
+          setSidebarState(cur === 'collapsed' ? 'half' : 'collapsed');
+        } else {
+          const cur = sidebar.dataset.state || 'open';
+          setSidebarState(cur === 'open' ? 'closed' : 'open');
+        }
+      });
+    }
+
+    // Legend toggle (mobile defaults to closed — FAB-only — to keep map visible)
+    const legend = document.getElementById('map-legend');
+    if (legend) {
+      legend.dataset.state = isMobile() ? 'closed' : 'open';
+    }
+    const legendToggle = document.getElementById('legend-toggle');
+    const legendClose = document.getElementById('legend-close');
+    if (legendToggle) {
+      legendToggle.addEventListener('click', () => {
+        document.getElementById('map-legend').dataset.state = 'open';
+      });
+    }
+    if (legendClose) {
+      legendClose.addEventListener('click', () => {
+        document.getElementById('map-legend').dataset.state = 'closed';
+      });
+    }
+
+    // Set initial state based on viewport
+    if (isMobile()) {
+      setSidebarState('half');
+    } else {
+      setSidebarState('open');
+    }
+
+    // Handle orientation / resize: swap state vocab cleanly
+    let lastIsMobile = isMobile();
+    window.addEventListener('resize', () => {
+      const nowMobile = isMobile();
+      if (nowMobile !== lastIsMobile) {
+        setSidebarState(nowMobile ? 'half' : 'open');
+        lastIsMobile = nowMobile;
+      }
+    });
+  }
+
+  function updateDrawerHandle() {
+    const titleEl = document.getElementById('drawer-handle-title');
+    const subEl = document.getElementById('drawer-handle-subtitle');
+    if (!titleEl || !subEl) return;
+
+    if (selectedBID) {
+      titleEl.textContent = selectedBID.name;
+      const dates = datePicker ? datePicker.selectedDates : [];
+      if (dates.length === 2) {
+        subEl.textContent = `${formatDateStr(dates[0])} to ${formatDateStr(dates[1])}`;
+      } else {
+        subEl.textContent = selectedBID.borough;
+      }
+    } else {
+      titleEl.textContent = 'Filters';
+      subEl.textContent = 'Choose a BID to begin';
+    }
   }
 
   // ===== BID Search Dropdown =====
@@ -111,6 +209,14 @@ const Filters = (() => {
     showBIDInfo();
     updateLoadButton();
     updateHash();
+    updateDrawerHandle();
+
+    // Auto-load 311 data as soon as a BID is picked and a date range exists.
+    // No need to make the user hunt for the Load button.
+    if (datePicker && datePicker.selectedDates.length === 2) {
+      // Defer one tick so the polygon has been drawn before we start the fetch spinner
+      setTimeout(() => onLoadClick(), 50);
+    }
   }
 
   // ===== Quick Date Buttons =====
@@ -125,29 +231,23 @@ const Filters = (() => {
           return;
         }
 
+        // Normalize "today" to midnight so flatpickr range works cleanly.
         const today = new Date();
-        let from;
+        today.setHours(0, 0, 0, 0);
+        const from = new Date(today);
+
         switch (range) {
-          case 'today':
-            from = new Date(today);
-            break;
-          case 'week':
-            from = new Date(today);
-            from.setDate(today.getDate() - 7);
-            break;
-          case '30':
-            from = new Date(today);
-            from.setDate(today.getDate() - 30);
-            break;
-          case '90':
-            from = new Date(today);
-            from.setDate(today.getDate() - 90);
-            break;
+          case 'today': break;
+          case 'week': from.setDate(from.getDate() - 7); break;
+          case '30':   from.setDate(from.getDate() - 30); break;
+          case '90':   from.setDate(from.getDate() - 90); break;
         }
 
-        datePicker.setDate([from, today]);
+        // Pass triggerChange=true so flatpickr fires onChange and redraws.
+        datePicker.setDate([from, today], true);
         setActiveQuickButton(range);
         updateLoadButton();
+        updateDrawerHandle();
       });
     });
   }
@@ -191,6 +291,19 @@ const Filters = (() => {
       MapView.toggleHeatmap(e.target.checked);
       if (!e.target.checked) App.replotCurrentData();
     });
+
+    // Status filter (Open / Closed / All)
+    document.querySelectorAll('#status-filter .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const status = btn.dataset.status;
+        document.querySelectorAll('#status-filter .seg-btn').forEach(b => {
+          const active = b === btn;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        App.setStatusFilter(status);
+      });
+    });
   }
 
   function onLoadClick() {
@@ -198,6 +311,9 @@ const Filters = (() => {
     const dates = datePicker.selectedDates;
     if (dates.length < 2) return;
     App.loadData(selectedBID, formatDateStr(dates[0]), formatDateStr(dates[1]));
+    updateDrawerHandle();
+    // On mobile, collapse drawer so map is visible while loading
+    if (isMobile()) setSidebarState('collapsed');
   }
 
   // ===== BID Info Display =====

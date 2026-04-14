@@ -1,10 +1,52 @@
 /**
  * app.js — Main app orchestration, state management, CSV export
+ *
+ * Filter model (single source of truth):
+ *   activeFilters = {
+ *     status: 'open' | 'closed' | 'all',      // segmented control
+ *     complaintType: string | null,            // click a legend row / chart bar
+ *     agency: string | null,                   // click an agency row
+ *     channel: string | null                   // click a channel slice
+ *   }
+ *
+ * Any dimension can be set independently. They AND together. Click the same value
+ * again (or the × on the breadcrumb) to clear that dimension.
  */
 const App = (() => {
   let allRecords = [];
   let matchResult = null;
   let typeColorMap = {};
+
+  const activeFilters = {
+    status: 'open',
+    complaintType: null,
+    agency: null,
+    channel: null
+  };
+
+  function isClosed(r) { return (r.status || '').toLowerCase() === 'closed'; }
+
+  function matchesStatus(r) {
+    if (activeFilters.status === 'all') return true;
+    if (activeFilters.status === 'closed') return isClosed(r);
+    return !isClosed(r);
+  }
+  function matchesType(r) {
+    return !activeFilters.complaintType || (r.complaint_type || '') === activeFilters.complaintType;
+  }
+  function matchesAgency(r) {
+    return !activeFilters.agency || (r.agency_name || r.agency || '') === activeFilters.agency;
+  }
+  function matchesChannel(r) {
+    if (!activeFilters.channel) return true;
+    const raw = (r.open_data_channel_type || '').trim();
+    const display = raw ? (raw.charAt(0) + raw.slice(1).toLowerCase()) : 'Unknown';
+    return display === activeFilters.channel;
+  }
+
+  function matchesAll(r) {
+    return matchesStatus(r) && matchesType(r) && matchesAgency(r) && matchesChannel(r);
+  }
 
   async function init() {
     MapView.init();
@@ -19,12 +61,11 @@ const App = (() => {
       showError('Failed to load BID data: ' + err.message);
     }
 
-    // CSV export in header
     document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
   }
 
   /**
-   * Main data loading
+   * Main data loading (fetch + normalize + initial render)
    */
   async function loadData(selectedBID, fromDate, toDate) {
     showLoading('Fetching 311 data...');
@@ -38,13 +79,11 @@ const App = (() => {
     }
 
     try {
-      // Fetch both sources in parallel
-      // Portal uses adaptive endpoint: daily windows + spatial re-split for capped days
       const [odRecords, portalPins] = await Promise.all([
         Data.fetch311OpenData(processed.paddedBbox, fromDate, toDate, (count) => {
           showLoading(`Loading Open Data... ${count.toLocaleString()} records`);
         }),
-        Data.fetch311Portal(processed.paddedBbox, fromDate, toDate)
+        Data.fetch311Portal(processed.paddedBbox, fromDate, toDate, { refresh: true })
       ]);
 
       showLoading('Filtering to BID boundary...');
@@ -52,13 +91,11 @@ const App = (() => {
       const odFiltered = odRecords.filter(r =>
         Polygons.isPointInside(r.longitude, r.latitude, processed)
       );
-
       const portalFiltered = portalPins.filter(r =>
         r.latitude && r.longitude && Polygons.isPointInside(r.longitude, r.latitude, processed)
       );
 
       showLoading('Matching records...');
-
       matchResult = Matching.matchRecords(odFiltered, portalFiltered);
 
       allRecords = [
@@ -73,36 +110,15 @@ const App = (() => {
         return;
       }
 
-      // Build type color map
       typeColorMap = buildTypeColorMap(allRecords);
 
-      // Build complaint type counts
-      const typeCounts = {};
-      for (const r of allRecords) {
-        const t = r.complaint_type || 'Unknown';
-        typeCounts[t] = (typeCounts[t] || 0) + 1;
-      }
-
-      // Build category legend on map
-      MapView.buildCategoryLegend(typeCounts, typeColorMap);
-
-      // Plot on map
-      MapView.plotRecords(allRecords, typeColorMap);
-      MapView.updateHeatmap(allRecords);
-
-      // Update summary
-      Summary.update(matchResult, allRecords);
-
-      // Show export button in header
       document.getElementById('export-csv-btn').classList.remove('hidden');
-
-      // Update URL
       Filters.updateHash();
 
+      applyFilters();
       hideLoading();
 
       console.log(`Loaded ${allRecords.length} records (${matchResult.matched.length} matched, ${matchResult.odOnly.length} OD-only, ${matchResult.portalOnly.length} portal-only)`);
-
     } catch (err) {
       console.error('Data loading error:', err);
       showError('Error loading data: ' + err.message);
@@ -111,29 +127,75 @@ const App = (() => {
   }
 
   /**
-   * Re-plot current data (used when toggling heatmap off)
+   * Single render pipeline — every filter change eventually calls this.
    */
-  function replotCurrentData() {
-    if (allRecords.length > 0) {
-      const active = MapView.getActiveCategories();
-      const filtered = allRecords.filter(r => active.has(r.complaint_type));
-      MapView.plotRecords(filtered, typeColorMap);
+  function applyFilters() {
+    if (!matchResult || allRecords.length === 0) return;
+
+    const visible = allRecords.filter(matchesAll);
+
+    // Legend counts reflect everything EXCEPT the complaintType filter
+    // (so user sees other types available to click-to-isolate into).
+    const typeCounts = {};
+    for (const r of allRecords) {
+      if (!matchesStatus(r) || !matchesAgency(r) || !matchesChannel(r)) continue;
+      const t = r.complaint_type || 'Unknown';
+      typeCounts[t] = (typeCounts[t] || 0) + 1;
     }
+
+    MapView.buildCategoryLegend(typeCounts, typeColorMap, activeFilters.complaintType);
+    MapView.plotRecords(visible, typeColorMap);
+    MapView.updateHeatmap(visible);
+    Summary.update(matchResult, visible, activeFilters);
   }
 
   /**
-   * Handle category toggle from legend
+   * Set a single filter dimension. Pass null to clear.
+   * Clicking a value that's already selected toggles it off.
    */
-  function onCategoryChange(activeCategories) {
-    if (matchResult) {
-      const filtered = allRecords.filter(r => activeCategories.has(r.complaint_type));
-      Summary.update(matchResult, filtered);
+  function setFilter(dimension, value) {
+    if (!(dimension in activeFilters)) return;
+    if (dimension === 'status') {
+      activeFilters.status = value || 'all';
+    } else {
+      // Click same value twice = clear it
+      activeFilters[dimension] = (activeFilters[dimension] === value) ? null : value;
+    }
+    // Sync the status segmented control visuals
+    if (dimension === 'status') {
+      document.querySelectorAll('#status-filter .seg-btn').forEach(b => {
+        const active = b.dataset.status === activeFilters.status;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+    }
+    applyFilters();
+  }
+
+  function clearFilter(dimension) {
+    if (dimension === 'status') {
+      setFilter('status', 'all');
+    } else {
+      activeFilters[dimension] = null;
+      applyFilters();
     }
   }
 
-  /**
-   * Build color map for complaint types
-   */
+  function clearAllFilters() {
+    activeFilters.status = 'all';
+    activeFilters.complaintType = null;
+    activeFilters.agency = null;
+    activeFilters.channel = null;
+    document.querySelectorAll('#status-filter .seg-btn').forEach(b => {
+      const active = b.dataset.status === 'all';
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    applyFilters();
+  }
+
+  function replotCurrentData() { applyFilters(); }
+
   function buildTypeColorMap(records) {
     const counts = {};
     for (const r of records) {
@@ -148,17 +210,18 @@ const App = (() => {
     return map;
   }
 
-  function getTypeColor(type) {
-    return typeColorMap[type] || '#94a3b8';
-  }
-
   function getAllRecords() { return allRecords; }
+  function getTypeColorMap() { return typeColorMap; }
+  function getActiveFilters() { return { ...activeFilters }; }
+  function getStatusFilter() { return activeFilters.status; }
 
   /**
-   * Export CSV
+   * Export CSV (respects active filters — only exports currently-visible records)
    */
   function exportCSV() {
     if (allRecords.length === 0) return;
+    const visible = allRecords.filter(matchesAll);
+    if (visible.length === 0) return;
 
     const headers = [
       'Source', 'Unique Key', 'SR Number', 'Complaint Type', 'Descriptor',
@@ -167,7 +230,7 @@ const App = (() => {
       'Resolution', 'Portal URL'
     ];
 
-    const rows = allRecords.map(r => [
+    const rows = visible.map(r => [
       r._source, r.unique_key || '', r.srnumber || '',
       r.complaint_type || '', r.descriptor || '', r.status || '',
       r.agency_name || r.agency || '', r.created_date || '', r.closed_date || '',
@@ -193,29 +256,32 @@ const App = (() => {
     URL.revokeObjectURL(url);
   }
 
-  // UI helpers
   function showLoading(text) {
     document.getElementById('loading-indicator').classList.remove('hidden');
     document.getElementById('loading-text').textContent = text || 'Loading...';
     document.getElementById('load-btn').disabled = true;
   }
-
   function hideLoading() {
     document.getElementById('loading-indicator').classList.add('hidden');
     document.getElementById('load-btn').disabled = false;
   }
-
   function showError(msg) {
     const el = document.getElementById('error-message');
     el.textContent = msg;
     el.classList.remove('hidden');
   }
-
   function hideError() {
     document.getElementById('error-message').classList.add('hidden');
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { loadData, replotCurrentData, onCategoryChange, getTypeColor, getAllRecords };
+  return {
+    loadData, replotCurrentData, getAllRecords, getTypeColorMap,
+    setFilter, clearFilter, clearAllFilters, getActiveFilters,
+    // Back-compat shims used elsewhere
+    setStatusFilter: (s) => setFilter('status', s),
+    getStatusFilter,
+    onCategoryChange: () => applyFilters()
+  };
 })();

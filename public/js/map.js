@@ -26,9 +26,13 @@ const MapView = (() => {
     map = L.map('map', {
       center: [40.7128, -74.006],
       zoom: 12,
-      zoomControl: true,
-      preferCanvas: true
+      zoomControl: false         // add manually so we can position it
+      // preferCanvas removed — it breaks marker-cluster spiderfy for circleMarker
     });
+
+    // Zoom controls — bottom-left so they never collide with the header, legend FAB,
+    // or the mobile drawer handle.
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
@@ -38,10 +42,20 @@ const MapView = (() => {
 
     markersLayer = L.markerClusterGroup({
       chunkedLoading: true,
-      maxClusterRadius: 50,
-      spiderfyOnMaxZoom: true,
+      maxClusterRadius: (zoom) => zoom >= 17 ? 20 : zoom >= 14 ? 40 : 50,
+      spiderfyOnMaxZoom: false,     // we handle overlap via stacked popups instead
       showCoverageOnHover: false,
-      disableClusteringAtZoom: 17
+      zoomToBoundsOnClick: true,
+      // Uniform neutral cluster — complaint colors only apply to individual pins.
+      iconCreateFunction: (cluster) => {
+        const count = cluster.getChildCount();
+        const size = count >= 100 ? 44 : count >= 25 ? 40 : 36;
+        return L.divIcon({
+          html: `<div class="cluster-inner"><span>${count}</span></div>`,
+          className: 'cluster-neutral',
+          iconSize: L.point(size, size)
+        });
+      }
     });
     map.addLayer(markersLayer);
 
@@ -80,35 +94,93 @@ const MapView = (() => {
   }
 
   /**
-   * Plot records on the map — fill = complaint type color, stroke = dark gray
+   * Plot records on the map. Records sharing the same lat/lng are grouped into ONE
+   * marker with a paginated popup ("1 of N", Next/Prev), NOT spiderfied.
    */
   function plotRecords(records, typeColorMap) {
     clearMarkers();
     currentRecords = records;
     currentTypeColorMap = typeColorMap;
-    activeCategories = new Set(Object.keys(typeColorMap));
 
+    // Group by rounded coords (~1-meter bucket) so true duplicates share a marker
+    const groups = new Map();
     for (const rec of records) {
-      if (!rec.latitude || !rec.longitude) continue;
-      const typeColor = typeColorMap[rec.complaint_type] || '#94a3b8';
-      addMarker(rec, typeColor);
+      if (rec.latitude == null || rec.longitude == null) continue;
+      const key = `${rec.latitude.toFixed(6)},${rec.longitude.toFixed(6)}`;
+      if (!groups.has(key)) groups.set(key, { lat: rec.latitude, lng: rec.longitude, records: [] });
+      groups.get(key).records.push(rec);
     }
 
-    document.getElementById('map-legend').classList.remove('hidden');
+    for (const group of groups.values()) {
+      const primary = group.records[0];
+      const typeColor = typeColorMap[primary.complaint_type] || '#94a3b8';
+      addStackedMarker(group, typeColor);
+    }
+
+    const legend = document.getElementById('map-legend');
+    legend.classList.remove('hidden');
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      legend.dataset.state = 'closed';
+    }
   }
 
-  function addMarker(rec, typeColor) {
-    const marker = L.circleMarker([rec.latitude, rec.longitude], {
-      radius: MARKER_RADIUS,
+  /**
+   * One marker per unique location. If the group has multiple records, the popup
+   * paginates through them. A small "N" badge on the marker indicates stack size.
+   */
+  function addStackedMarker(group, typeColor) {
+    const count = group.records.length;
+    const marker = L.circleMarker([group.lat, group.lng], {
+      radius: count > 1 ? MARKER_RADIUS + 2 : MARKER_RADIUS,
       fillColor: typeColor,
-      fillOpacity: 0.85,
-      color: MARKER_STROKE,
-      weight: MARKER_STROKE_WEIGHT,
+      fillOpacity: 0.9,
+      color: count > 1 ? '#fff' : MARKER_STROKE,
+      weight: count > 1 ? 2 : MARKER_STROKE_WEIGHT,
       opacity: 1
     });
-    marker.bindPopup(() => buildPopup(rec), { maxWidth: 320, minWidth: 260 });
-    marker.record = rec;
+
+    // Paging state is per-popup; store index on the marker
+    marker._pageIdx = 0;
+    marker._group = group;
+
+    marker.bindPopup(() => buildStackedPopup(marker), {
+      maxWidth: 340,
+      minWidth: 280,
+      keepInView: true,
+      autoPan: true
+    });
+
     markersLayer.addLayer(marker);
+  }
+
+  /**
+   * Build the popup HTML for a stacked marker. Shows "i of N" and Next/Prev when N > 1.
+   */
+  function buildStackedPopup(marker) {
+    const group = marker._group;
+    const idx = Math.max(0, Math.min(marker._pageIdx, group.records.length - 1));
+    const rec = group.records[idx];
+    const count = group.records.length;
+
+    const pager = count > 1
+      ? `<div class="popup-pager">
+           <button class="pager-btn pager-prev" aria-label="Previous complaint" ${idx === 0 ? 'disabled' : ''}>&lsaquo;</button>
+           <span class="pager-count">Complaint <strong>${idx + 1}</strong> of <strong>${count}</strong></span>
+           <button class="pager-btn pager-next" aria-label="Next complaint" ${idx === count - 1 ? 'disabled' : ''}>&rsaquo;</button>
+         </div>`
+      : '';
+
+    // Defer wiring until Leaflet injects the popup DOM
+    setTimeout(() => {
+      const root = document.querySelector('.leaflet-popup-content');
+      if (!root) return;
+      const prev = root.querySelector('.pager-prev');
+      const next = root.querySelector('.pager-next');
+      if (prev) prev.onclick = (e) => { e.stopPropagation(); if (marker._pageIdx > 0) { marker._pageIdx--; marker.setPopupContent(buildStackedPopup(marker)); } };
+      if (next) next.onclick = (e) => { e.stopPropagation(); if (marker._pageIdx < count - 1) { marker._pageIdx++; marker.setPopupContent(buildStackedPopup(marker)); } };
+    }, 0);
+
+    return pager + buildPopupForRecord(rec);
   }
 
   /**
@@ -116,7 +188,14 @@ const MapView = (() => {
    */
   const MAX_LEGEND_ITEMS = 15;
 
-  function buildCategoryLegend(typeCounts, typeColorMap) {
+  /**
+   * Click-to-isolate category list. No checkboxes.
+   *   - Clicking a type sets App.setFilter('complaintType', type) — map isolates to that type.
+   *   - Clicking the same type again clears the filter (shows all).
+   *   - "Show all" button also clears.
+   *   - The currently isolated type is highlighted; others dim.
+   */
+  function buildCategoryLegend(typeCounts, typeColorMap, isolatedType) {
     const container = document.getElementById('legend-categories');
     container.innerHTML = '';
 
@@ -125,114 +204,64 @@ const MapView = (() => {
     const otherTypes = sorted.slice(MAX_LEGEND_ITEMS);
     const otherCount = otherTypes.reduce((sum, [, c]) => sum + c, 0);
 
-    // Active categories includes ALL types (including "other")
-    activeCategories = new Set(sorted.map(([type]) => type));
+    const hasIsolation = !!isolatedType;
+
+    function renderRow(type, displayName, count, color, onClick) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'legend-cat-row';
+      row.dataset.type = type;
+      const isActive = !hasIsolation || type === isolatedType;
+      row.innerHTML =
+        `<span class="legend-cat-dot" style="background:${color};"></span>` +
+        `<span class="legend-cat-name" title="${Utils.esc(displayName)}">${Utils.esc(displayName)}</span>` +
+        `<span class="legend-cat-count">${count}</span>`;
+      row.classList.toggle('isolated', type === isolatedType);
+      row.classList.toggle('inactive', hasIsolation && type !== isolatedType);
+      row.addEventListener('click', (e) => { e.preventDefault(); onClick(); });
+      container.appendChild(row);
+      return row;
+    }
 
     for (const [type, count] of topTypes) {
       const color = typeColorMap[type] || '#94a3b8';
-      const row = document.createElement('div');
-      row.className = 'legend-cat-row';
-      row.dataset.type = type;
-      row.innerHTML = `<span class="legend-cat-dot" style="background:${color};"></span>` +
-        `<span class="legend-cat-name" title="${esc(type)}">${esc(type)}</span>` +
-        `<span class="legend-cat-count">${count}</span>`;
-      row.addEventListener('click', () => toggleCategory(type));
-      container.appendChild(row);
+      renderRow(type, type, count, color, () => App.setFilter('complaintType', type));
     }
 
-    // "Other" row grouping remaining types
     if (otherCount > 0) {
-      const otherTypeNames = otherTypes.map(([t]) => t);
-      const row = document.createElement('div');
-      row.className = 'legend-cat-row';
-      row.dataset.type = '__other__';
-      row.innerHTML = `<span class="legend-cat-dot" style="background:#94a3b8;"></span>` +
-        `<span class="legend-cat-name" title="${otherTypeNames.length} more types">Other (${otherTypeNames.length} types)</span>` +
-        `<span class="legend-cat-count">${otherCount}</span>`;
-      row.addEventListener('click', () => {
-        const allActive = otherTypeNames.every(t => activeCategories.has(t));
-        for (const t of otherTypeNames) {
-          if (allActive) activeCategories.delete(t);
-          else activeCategories.add(t);
-        }
-        row.classList.toggle('inactive', !otherTypeNames.some(t => activeCategories.has(t)));
-        rebuildMarkers();
-        App.onCategoryChange(activeCategories);
+      // "Other" lets the user isolate to any of the less-common types via a sub-menu prompt.
+      const names = otherTypes.map(([t]) => t);
+      renderRow('__other__', `Other (${names.length} types)`, otherCount, '#94a3b8', () => {
+        // Quick-and-dirty: prompt to pick one. A real submenu would be a follow-up.
+        const pick = window.prompt(`Filter to which complaint type?\n\n${names.join('\n')}\n\n(Leave blank to cancel.)`);
+        if (pick && names.includes(pick)) App.setFilter('complaintType', pick);
       });
-      container.appendChild(row);
     }
 
-    // Wire select all / deselect all
-    document.getElementById('legend-select-all').onclick = () => selectAllCategories(sorted.map(([t]) => t));
-    document.getElementById('legend-deselect-all').onclick = () => deselectAllCategories();
-  }
-
-  function toggleCategory(type) {
-    if (activeCategories.has(type)) {
-      activeCategories.delete(type);
-    } else {
-      activeCategories.add(type);
-    }
-    updateCategoryVisuals();
-    rebuildMarkers();
-    App.onCategoryChange(activeCategories);
-  }
-
-  function selectAllCategories(allTypes) {
-    activeCategories = new Set(allTypes || Object.keys(currentTypeColorMap));
-    updateCategoryVisuals();
-    rebuildMarkers();
-    App.onCategoryChange(activeCategories);
-  }
-
-  function deselectAllCategories() {
-    activeCategories.clear();
-    updateCategoryVisuals();
-    rebuildMarkers();
-    App.onCategoryChange(activeCategories);
-  }
-
-  function updateCategoryVisuals() {
-    document.querySelectorAll('.legend-cat-row').forEach(row => {
-      row.classList.toggle('inactive', !activeCategories.has(row.dataset.type));
-    });
+    document.getElementById('legend-select-all').onclick = () => App.clearFilter('complaintType');
+    document.getElementById('legend-deselect-all').onclick = () => App.clearFilter('complaintType');
   }
 
   /**
-   * Rebuild markers based on active categories
+   * Build HTML popup for a single record
    */
-  function rebuildMarkers() {
-    markersLayer.clearLayers();
-    const filtered = currentRecords.filter(r => activeCategories.has(r.complaint_type));
-    for (const rec of filtered) {
-      if (!rec.latitude || !rec.longitude) continue;
-      const typeColor = currentTypeColorMap[rec.complaint_type] || '#94a3b8';
-      addMarker(rec, typeColor);
-    }
-  }
-
-  function getActiveCategories() { return activeCategories; }
-
-  /**
-   * Build HTML popup for a record
-   */
-  function buildPopup(rec) {
+  function buildPopupForRecord(rec) {
     const statusClass = (rec.status || '').toLowerCase().replace(/\s+/g, '-');
     const sourceLabel = rec._source === 'matched' ? 'Both Sources' :
                         rec._source === 'portal' ? 'Portal Only' : 'Open Data Only';
     const sourceClass = rec._source === 'matched' ? 'source-matched' :
                         rec._source === 'portal' ? 'source-portal' : 'source-od';
 
-    let html = `<div class="popup-title">${esc(rec.complaint_type || 'Unknown')}</div>`;
+    let html = `<div class="popup-title">${Utils.esc(rec.complaint_type || 'Unknown')}</div>`;
 
     if (rec.descriptor) {
-      html += `<div class="popup-row"><span class="popup-label">Detail</span><span class="popup-value">${esc(rec.descriptor)}</span></div>`;
+      html += `<div class="popup-row"><span class="popup-label">Detail</span><span class="popup-value">${Utils.esc(rec.descriptor)}</span></div>`;
     }
 
-    html += `<div class="popup-row"><span class="popup-label">Status</span><span class="popup-value"><span class="popup-badge ${statusClass}">${esc(rec.status || 'Unknown')}</span></span></div>`;
+    html += `<div class="popup-row"><span class="popup-label">Status</span><span class="popup-value"><span class="popup-badge ${statusClass}">${Utils.esc(rec.status || 'Unknown')}</span></span></div>`;
 
     if (rec.agency_name || rec.agency) {
-      html += `<div class="popup-row"><span class="popup-label">Agency</span><span class="popup-value">${esc(rec.agency_name || rec.agency)}</span></div>`;
+      html += `<div class="popup-row"><span class="popup-label">Agency</span><span class="popup-value">${Utils.esc(rec.agency_name || rec.agency)}</span></div>`;
     }
 
     html += `<div class="popup-row"><span class="popup-label">Created</span><span class="popup-value">${formatDate(rec.created_date)}</span></div>`;
@@ -242,28 +271,28 @@ const MapView = (() => {
     }
 
     if (rec.incident_address) {
-      html += `<div class="popup-row"><span class="popup-label">Address</span><span class="popup-value">${esc(rec.incident_address)}</span></div>`;
+      html += `<div class="popup-row"><span class="popup-label">Address</span><span class="popup-value">${Utils.esc(rec.incident_address)}</span></div>`;
     }
 
     if (rec.community_board) {
-      html += `<div class="popup-row"><span class="popup-label">Community Board</span><span class="popup-value">${esc(rec.community_board)}</span></div>`;
+      html += `<div class="popup-row"><span class="popup-label">Community Board</span><span class="popup-value">${Utils.esc(rec.community_board)}</span></div>`;
     }
 
     if (rec.open_data_channel_type) {
-      html += `<div class="popup-row"><span class="popup-label">Channel</span><span class="popup-value">${esc(rec.open_data_channel_type)}</span></div>`;
+      html += `<div class="popup-row"><span class="popup-label">Channel</span><span class="popup-value">${Utils.esc(rec.open_data_channel_type)}</span></div>`;
     }
 
     html += `<div class="popup-row"><span class="popup-label">Source</span><span class="popup-value"><span class="popup-badge ${sourceClass}">${sourceLabel}</span></span></div>`;
 
     if (rec.srnumber) {
-      html += `<div class="popup-row"><span class="popup-label">SR#</span><span class="popup-value">${esc(rec.srnumber)}</span></div>`;
+      html += `<div class="popup-row"><span class="popup-label">SR#</span><span class="popup-value">${Utils.esc(rec.srnumber)}</span></div>`;
     }
 
     if (rec.resolution_description) {
       const resTruncated = rec.resolution_description.length > 300
         ? rec.resolution_description.substring(0, 300) + '...'
         : rec.resolution_description;
-      html += `<div class="popup-resolution"><strong>Resolution:</strong> ${esc(resTruncated)}</div>`;
+      html += `<div class="popup-resolution"><strong>Resolution:</strong> ${Utils.esc(resTruncated)}</div>`;
     }
 
     if (rec.portalUrl) {
@@ -319,13 +348,6 @@ const MapView = (() => {
   function getMap() { return map; }
 
   // Helpers
-  function esc(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   function formatDate(str) {
     if (!str) return '\u2014';
     try {
@@ -339,6 +361,6 @@ const MapView = (() => {
   return {
     init, drawBIDPolygon, plotRecords, buildCategoryLegend, updateHeatmap,
     toggleHeatmap, toggleParcels, toggleBuffer, clearMarkers, clearPolygonLayers,
-    rebuildMarkers, getActiveCategories, getMap, TYPE_COLORS
+    getMap, TYPE_COLORS
   };
 })();
