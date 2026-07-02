@@ -12,6 +12,10 @@
  * Any dimension can be set independently. They AND together. Click the same value
  * again (or the × on the breadcrumb) to clear that dimension.
  */
+if (window.location.protocol === 'file:') {
+  window.location.replace(`http://localhost:3000/${window.location.hash || ''}`);
+}
+
 const App = (() => {
   let allRecords = [];
   let matchResult = null;
@@ -81,7 +85,7 @@ const App = (() => {
     try {
       const [odRecords, portalPins] = await Promise.all([
         Data.fetch311OpenData(processed.paddedBbox, fromDate, toDate, (count) => {
-          showLoading(`Loading Open Data... ${count.toLocaleString()} records`);
+          showLoading('Loading Open Data...');
         }),
         Data.fetch311Portal(processed.paddedBbox, fromDate, toDate, { refresh: true })
       ]);
@@ -257,12 +261,19 @@ const App = (() => {
   }
 
   function showLoading(text) {
+    const message = text || 'Loading...';
     document.getElementById('loading-indicator').classList.remove('hidden');
-    document.getElementById('loading-text').textContent = text || 'Loading...';
+    document.getElementById('loading-text').textContent = message;
+    const overlay = document.getElementById('map-loading-overlay');
+    const overlayText = document.getElementById('map-loading-text');
+    if (overlay) overlay.classList.remove('hidden');
+    if (overlayText) overlayText.textContent = loadingOverlayMessage(message);
     document.getElementById('load-btn').disabled = true;
   }
   function hideLoading() {
     document.getElementById('loading-indicator').classList.add('hidden');
+    const overlay = document.getElementById('map-loading-overlay');
+    if (overlay) overlay.classList.add('hidden');
     document.getElementById('load-btn').disabled = false;
   }
   function showError(msg) {
@@ -272,6 +283,14 @@ const App = (() => {
   }
   function hideError() {
     document.getElementById('error-message').classList.add('hidden');
+  }
+
+  function loadingOverlayMessage(message) {
+    if (/Open Data/i.test(message)) return 'Fetching official 311 records...';
+    if (/Filtering/i.test(message)) return 'Filtering to the selected BID...';
+    if (/Matching/i.test(message)) return 'Merging live and official records...';
+    if (/BID boundaries/i.test(message)) return 'Loading BID boundaries...';
+    return message.replace(/\s+\d[\d,]*\s+records?/i, '');
   }
 
   document.addEventListener('DOMContentLoaded', init);

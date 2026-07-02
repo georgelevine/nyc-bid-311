@@ -29,8 +29,14 @@
       <span class="header-subtitle">Service requests by Business Improvement District</span>
     </div>
     <div class="header-right">
-      <button id="export-csv-btn" class="header-link hidden" title="Download current data as CSV">Export CSV</button>
-      <a href="about.html" class="header-link" title="About & methodology">About</a>
+      <button id="export-csv-btn" class="header-link hidden" title="Download current data as CSV" aria-label="Export CSV">
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2v9.2l3.1-3.1 1.4 1.4-5.5 5.5-5.5-5.5 1.4-1.4L8 11.2V2h2zm-6 14h12v2H4v-2z"/></svg>
+        <span>Export CSV</span>
+      </button>
+      <a href="about.html" class="header-link" title="About & methodology" aria-label="About and methodology">
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 8h2v8H9V8zm0-4h2v2H9V4zm1-2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 14.2A6.2 6.2 0 1 1 10 3.8a6.2 6.2 0 0 1 0 12.4z"/></svg>
+        <span>About</span>
+      </a>
     </div>
   </header>
 
@@ -99,8 +105,8 @@
 
           <div class="stat-grid" id="stat-grid"></div>
 
-          <!-- Data source breakdown (open by default — shows where each pin came from) -->
-          <details id="data-source-details" open>
+          <!-- Data source diagnostics are kept in the DOM for debugging but hidden from the main UI. -->
+          <details id="data-source-details" class="hidden">
             <summary>Where the data comes from</summary>
             <div class="source-explainer">
               <p>Each pin comes from NYC Open Data (official record, ~1-day lag), the live 311 Portal (near-realtime), or both. Portal queries are split across daily windows and sub-divided spatially when needed so the portal's per-request limit doesn't truncate results. Requests seen in both sources are counted once.</p>
@@ -147,6 +153,15 @@
     <!-- Map -->
     <main id="map-container">
       <div id="map"></div>
+      <div id="map-loading-overlay" class="hidden" role="status" aria-live="polite">
+        <div class="map-loading-card">
+          <div class="map-loading-spinner" aria-hidden="true"></div>
+          <div>
+            <div class="map-loading-title">Loading 311 data</div>
+            <div id="map-loading-text">Fetching records...</div>
+          </div>
+        </div>
+      </div>
 
       <!-- Legend: collapsible FAB on mobile, inline panel on desktop -->
       <div id="map-legend" class="hidden" data-state="open">
@@ -183,13 +198,13 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <!-- App modules (utils first). Version bump busts browser cache. -->
-  <script src="js/utils.js?v=8"></script>
-  <script src="js/polygons.js?v=8"></script>
-  <script src="js/data.js?v=8"></script>
-  <script src="js/matching.js?v=8"></script>
-  <script src="js/map.js?v=8"></script>
-  <script src="js/filters.js?v=8"></script>
-  <script src="js/summary.js?v=8"></script>
-  <script src="js/app.js?v=8"></script>
+  <script src="js/utils.js?v=13"></script>
+  <script src="js/polygons.js?v=13"></script>
+  <script src="js/data.js?v=13"></script>
+  <script src="js/matching.js?v=13"></script>
+  <script src="js/map.js?v=13"></script>
+  <script src="js/filters.js?v=13"></script>
+  <script src="js/summary.js?v=13"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>

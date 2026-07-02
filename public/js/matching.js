@@ -6,6 +6,8 @@
  */
 const Matching = (() => {
   const TIME_WINDOW_MS = 3 * 60 * 1000; // 3 minutes
+  const LOOSE_TIME_WINDOW_MS = 24 * 60 * 60 * 1000; // same-day tolerance for duplicate suppression
+  const COORD_WINDOW = 0.00025; // ~25m in NYC, enough for OD vs portal geocoding drift
 
   /**
    * Parse portal date "M/D/YYYY H:MM:SS AM/PM" (Eastern Time) to UTC Date
@@ -72,6 +74,33 @@ const Matching = (() => {
       .trim();
   }
 
+  function normalizeType(type) {
+    return (type || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
+  function sameType(a, b) {
+    const ta = normalizeType(a);
+    const tb = normalizeType(b);
+    return !!ta && !!tb && (ta === tb || ta.includes(tb) || tb.includes(ta));
+  }
+
+  function addressCompatible(a, b) {
+    const aa = normalizeAddress(a);
+    const bb = normalizeAddress(b);
+    if (!aa || !bb) return true;
+    if (aa.includes(bb) || bb.includes(aa)) return true;
+    // Street names can arrive with slightly different house-number/corner text.
+    const aWords = new Set(aa.split(' ').filter(w => w.length > 2));
+    const bWords = bb.split(' ').filter(w => w.length > 2);
+    return bWords.some(w => aWords.has(w));
+  }
+
+  function coordsClose(od, pin) {
+    if (od.latitude == null || od.longitude == null || pin.latitude == null || pin.longitude == null) return false;
+    return Math.abs(parseFloat(od.latitude) - parseFloat(pin.latitude)) <= COORD_WINDOW &&
+           Math.abs(parseFloat(od.longitude) - parseFloat(pin.longitude)) <= COORD_WINDOW;
+  }
+
   /**
    * Match portal pins against Open Data records.
    * Returns { matched, odOnly, portalOnly }
@@ -88,7 +117,7 @@ const Matching = (() => {
     // Build index of OD records by complaint type for faster lookup
     const odByType = {};
     for (let i = 0; i < odRecords.length; i++) {
-      const type = (odRecords[i].complaint_type || '').toUpperCase();
+      const type = normalizeType(odRecords[i].complaint_type);
       if (!odByType[type]) odByType[type] = [];
       odByType[type].push(i);
     }
@@ -99,7 +128,7 @@ const Matching = (() => {
       const portalDate = parsePortalDate(pin.submitteddate);
       if (!portalDate) continue;
 
-      const portalType = (pin.problem || '').toUpperCase();
+      const portalType = normalizeType(pin.problem);
       const portalAddr = normalizeAddress(pin.address);
       const candidates = odByType[portalType] || [];
 
@@ -135,6 +164,53 @@ const Matching = (() => {
           portal: pin,
           _source: 'matched',
           _timeDiff: bestTimeDiff
+        });
+        odMatched.add(bestMatch);
+        portalMatched.add(pi);
+      }
+    }
+
+    // Fallback duplicate suppression: the primary matcher is intentionally strict,
+    // but OD and Portal can represent the same request with slightly shifted
+    // timestamps, coordinates, or address text. Merge those clear near-duplicates
+    // before calling anything "Portal only."
+    for (let pi = 0; pi < portalPins.length; pi++) {
+      if (portalMatched.has(pi)) continue;
+      const pin = portalPins[pi];
+      const portalDate = parsePortalDate(pin.submitteddate);
+      if (!portalDate) continue;
+
+      let bestMatch = null;
+      let bestScore = Infinity;
+
+      for (let oi = 0; oi < odRecords.length; oi++) {
+        if (odMatched.has(oi)) continue;
+        const od = odRecords[oi];
+        if (!sameType(od.complaint_type, pin.problem)) continue;
+        if (!coordsClose(od, pin)) continue;
+        if (!addressCompatible(od.incident_address, pin.address)) continue;
+
+        const odDate = parseODDate(od.created_date);
+        if (!odDate) continue;
+        const timeDiff = Math.abs(portalDate.getTime() - odDate.getTime());
+        if (timeDiff > LOOSE_TIME_WINDOW_MS) continue;
+
+        const coordScore =
+          Math.abs(parseFloat(od.latitude) - parseFloat(pin.latitude)) +
+          Math.abs(parseFloat(od.longitude) - parseFloat(pin.longitude));
+        const score = timeDiff + coordScore * 100000000;
+        if (score < bestScore) {
+          bestScore = score;
+          bestMatch = oi;
+        }
+      }
+
+      if (bestMatch !== null) {
+        matched.push({
+          od: odRecords[bestMatch],
+          portal: pin,
+          _source: 'matched',
+          _fallbackMatch: true
         });
         odMatched.add(bestMatch);
         portalMatched.add(pi);

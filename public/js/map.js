@@ -48,7 +48,8 @@ const MapView = (() => {
       zoomToBoundsOnClick: true,
       // Uniform neutral cluster — complaint colors only apply to individual pins.
       iconCreateFunction: (cluster) => {
-        const count = cluster.getChildCount();
+        const count = cluster.getAllChildMarkers()
+          .reduce((sum, marker) => sum + (marker._recordCount || 1), 0);
         const size = count >= 100 ? 44 : count >= 25 ? 40 : 36;
         return L.divIcon({
           html: `<div class="cluster-inner"><span>${count}</span></div>`,
@@ -142,6 +143,7 @@ const MapView = (() => {
     // Paging state is per-popup; store index on the marker
     marker._pageIdx = 0;
     marker._group = group;
+    marker._recordCount = count;
 
     marker.bindPopup(() => buildStackedPopup(marker), {
       maxWidth: 340,
