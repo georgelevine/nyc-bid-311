@@ -6,6 +6,7 @@ const MapView = (() => {
   let bidOverviewLayer = null;
   let bidOverviewFeatures = [];
   let selectedBIDIndex = null;
+  let touchPreviewBIDIndex = null;
   let parcelsLayer = null;
   let bufferLayer = null;
   let markersLayer = null;
@@ -86,7 +87,7 @@ const MapView = (() => {
     };
     const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
     const isMapGesture = (target) => target instanceof Element && !target.closest(
-      '#map-legend, .leaflet-control, .leaflet-popup, .leaflet-tooltip'
+      '#map-legend, .leaflet-control, .leaflet-popup, .leaflet-tooltip, .bid-overview-boundary'
     );
 
     container.addEventListener('touchstart', (event) => {
@@ -161,6 +162,7 @@ const MapView = (() => {
     if (bidOverviewLayer) map.removeLayer(bidOverviewLayer);
     bidOverviewFeatures = [];
     selectedBIDIndex = null;
+    touchPreviewBIDIndex = null;
 
     const featureIndexes = new Map(geojson.features.map((feature, index) => [feature, index]));
     bidOverviewLayer = L.geoJSON(geojson, {
@@ -189,8 +191,17 @@ const MapView = (() => {
           },
           click: (event) => {
             L.DomEvent.stopPropagation(event);
-            layer.closeTooltip();
             if (index === selectedBIDIndex) return;
+
+            if (isTouchDevice() && touchPreviewBIDIndex !== index) {
+              closeTouchPreview();
+              touchPreviewBIDIndex = index;
+              layer.openTooltip(event.latlng);
+              return;
+            }
+
+            touchPreviewBIDIndex = null;
+            layer.closeTooltip();
             if (typeof onSelect === 'function') onSelect(index);
           },
           dblclick: (event) => {
@@ -203,11 +214,25 @@ const MapView = (() => {
       }
     }).addTo(map);
 
+    map.off('click', closeTouchPreview);
+    map.on('click', closeTouchPreview);
+
     if (bidOverviewLayer.getBounds().isValid()) {
       const bounds = bidOverviewLayer.getBounds();
       const overviewZoom = map.getContainer().clientWidth <= 768 ? 10 : 11;
       map.setView(bounds.getCenter(), overviewZoom, { animate: false });
     }
+  }
+
+  function isTouchDevice() {
+    return navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  }
+
+  function closeTouchPreview() {
+    if (touchPreviewBIDIndex === null) return;
+    const layer = bidOverviewFeatures[touchPreviewBIDIndex];
+    if (layer) layer.closeTooltip();
+    touchPreviewBIDIndex = null;
   }
 
   function overviewStyle(index, selected = false, hovered = false) {
@@ -223,6 +248,7 @@ const MapView = (() => {
   }
 
   function setSelectedBID(index) {
+    closeTouchPreview();
     selectedBIDIndex = index;
     for (let i = 0; i < bidOverviewFeatures.length; i++) {
       const layer = bidOverviewFeatures[i];
