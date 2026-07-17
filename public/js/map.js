@@ -78,13 +78,14 @@ const MapView = (() => {
     let touchStart = null;
     let touchMoved = false;
     let lastTap = null;
+    let consumeTouch = false;
 
     const touchPoint = (touch) => {
       const rect = container.getBoundingClientRect();
       return L.point(touch.clientX - rect.left, touch.clientY - rect.top);
     };
     const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-    const isMapGesture = (target) => !target.closest(
+    const isMapGesture = (target) => target instanceof Element && !target.closest(
       '#map-legend, .leaflet-control, .leaflet-popup, .leaflet-tooltip'
     );
 
@@ -95,16 +96,39 @@ const MapView = (() => {
         lastTap = null;
         return;
       }
-      touchStart = { point: touchPoint(event.touches[0]), time: Date.now() };
+
+      const now = Date.now();
+      const point = touchPoint(event.touches[0]);
+      if (lastTap && now - lastTap.time < 350 && distance(lastTap.point, point) < 40) {
+        // Capture the second tap before Leaflet turns it into a click or drag.
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        map.stop();
+        map.setZoomAround(point, Math.min(map.getZoom() + 1, map.getMaxZoom()));
+        touchStart = null;
+        lastTap = null;
+        consumeTouch = true;
+        return;
+      }
+
+      touchStart = { point, time: now };
       touchMoved = false;
-    }, { passive: true });
+      consumeTouch = false;
+    }, { passive: false, capture: true });
 
     container.addEventListener('touchmove', (event) => {
       if (!touchStart || event.touches.length !== 1) return;
       if (distance(touchStart.point, touchPoint(event.touches[0])) > 12) touchMoved = true;
-    }, { passive: true });
+    }, { passive: true, capture: true });
 
     container.addEventListener('touchend', (event) => {
+      if (consumeTouch) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        consumeTouch = false;
+        return;
+      }
+
       if (!touchStart || touchMoved || event.changedTouches.length !== 1) {
         touchStart = null;
         return;
@@ -119,22 +143,15 @@ const MapView = (() => {
         return;
       }
 
-      if (lastTap && now - lastTap.time < 350 && distance(lastTap.point, point) < 40) {
-        event.preventDefault();
-        event.stopPropagation();
-        map.stop();
-        map.setZoomAround(point, Math.min(map.getZoom() + 1, map.getMaxZoom()));
-        lastTap = null;
-      } else {
-        lastTap = { point, time: now };
-      }
-    }, { passive: false });
+      lastTap = { point, time: now };
+    }, { passive: false, capture: true });
 
     container.addEventListener('touchcancel', () => {
       touchStart = null;
       touchMoved = false;
       lastTap = null;
-    }, { passive: true });
+      consumeTouch = false;
+    }, { passive: true, capture: true });
   }
 
   /**
