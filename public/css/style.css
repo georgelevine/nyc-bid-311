@@ -429,6 +429,21 @@ select option { background: var(--bg-input); color: var(--text-primary); }
 #map-container { flex: 1; position: relative; min-width: 0; }
 #map { width: 100%; height: 100%; background: var(--bg-dark); }
 
+.bid-overview-boundary {
+  cursor: pointer;
+  transition: fill-opacity 0.12s ease, stroke 0.12s ease;
+}
+.bid-map-tooltip {
+  padding: 6px 9px !important;
+  background: rgba(28, 32, 40, 0.96) !important;
+  border: 1px solid rgba(140, 196, 255, 0.5) !important;
+  border-radius: 4px !important;
+  box-shadow: var(--shadow-lg) !important;
+  color: var(--text-primary) !important;
+  font: 600 12px/1.25 Inter, system-ui, sans-serif !important;
+}
+.bid-map-tooltip::before { border-top-color: rgba(140, 196, 255, 0.5) !important; }
+
 #map-loading-overlay {
   position: absolute;
   inset: 0;

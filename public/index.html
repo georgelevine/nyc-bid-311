@@ -105,25 +105,6 @@
 
           <div class="stat-grid" id="stat-grid"></div>
 
-          <!-- Data source diagnostics are kept in the DOM for debugging but hidden from the main UI. -->
-          <details id="data-source-details" class="hidden">
-            <summary>Where the data comes from</summary>
-            <div class="source-explainer">
-              <p>Each pin comes from NYC Open Data (official record, ~1-day lag), the live 311 Portal (near-realtime), or both. Portal queries are split across daily windows and sub-divided spatially when needed so the portal's per-request limit doesn't truncate results. Requests seen in both sources are counted once.</p>
-              <div id="source-bar" class="source-bar" aria-hidden="true">
-                <div class="source-bar-seg seg-matched" id="source-bar-matched" title="In both sources"></div>
-                <div class="source-bar-seg seg-od" id="source-bar-od" title="Open Data only"></div>
-                <div class="source-bar-seg seg-portal" id="source-bar-portal" title="Portal only"></div>
-              </div>
-              <div class="source-legend">
-                <div class="source-legend-row"><span class="source-dot seg-matched"></span><span class="source-label">In both</span><span class="source-count" id="stat-matched">0</span></div>
-                <div class="source-legend-row"><span class="source-dot seg-od"></span><span class="source-label">Open Data only</span><span class="source-count" id="stat-od-only">0</span></div>
-                <div class="source-legend-row"><span class="source-dot seg-portal"></span><span class="source-label">Portal only</span><span class="source-count" id="stat-portal-only">0</span></div>
-                <div class="source-legend-row source-legend-rate"><span class="source-label">Cross-source match rate</span><span class="source-count" id="stat-match-rate">—</span></div>
-              </div>
-            </div>
-          </details>
-
           <h3 id="status-section-header">Status</h3>
           <div id="status-chart-container">
             <canvas id="status-chart" height="160"></canvas>
@@ -132,14 +113,6 @@
           <h3>Top Complaint Types</h3>
           <div id="complaints-chart-container">
             <canvas id="complaints-chart" height="300"></canvas>
-          </div>
-
-          <h3>Top Agencies</h3>
-          <div id="agency-list"></div>
-
-          <h3>Submission Channel</h3>
-          <div id="channel-chart-container">
-            <canvas id="channel-chart" height="160"></canvas>
           </div>
 
           <h3>Requests Over Time</h3>
@@ -198,13 +171,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <!-- App modules (utils first). Version bump busts browser cache. -->
-  <script src="js/utils.js?v=13"></script>
-  <script src="js/polygons.js?v=13"></script>
-  <script src="js/data.js?v=13"></script>
-  <script src="js/matching.js?v=13"></script>
-  <script src="js/map.js?v=13"></script>
-  <script src="js/filters.js?v=13"></script>
-  <script src="js/summary.js?v=13"></script>
-  <script src="js/app.js?v=13"></script>
+  <script src="js/utils.js?v=22"></script>
+  <script src="js/polygons.js?v=22"></script>
+  <script src="js/data.js?v=22"></script>
+  <script src="js/map.js?v=22"></script>
+  <script src="js/filters.js?v=22"></script>
+  <script src="js/summary.js?v=22"></script>
+  <script src="js/app.js?v=22"></script>
 </body>
 </html>

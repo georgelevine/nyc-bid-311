@@ -5,7 +5,6 @@
 const Summary = (() => {
   let statusChart = null;
   let complaintsChart = null;
-  let channelChart = null;
   let timelineChart = null;
 
   const chartDefaults = {
@@ -19,7 +18,7 @@ const Summary = (() => {
   /**
    * Update all summary stats and charts
    */
-  function update(matchResult, allRecords, activeFilters) {
+  function update(allRecords, activeFilters) {
     const section = document.getElementById('summary-section');
     section.classList.remove('hidden');
 
@@ -36,37 +35,9 @@ const Summary = (() => {
     if (statusContainer) statusContainer.classList.toggle('hidden', !showStatus);
     if (statusHeader) statusHeader.classList.toggle('hidden', !showStatus);
 
-    // Data source breakdown — respect the current status filter, so users see what
-    // share of the CURRENTLY VISIBLE requests came from each source.
-    let matchedCount = 0, odOnlyCount = 0, portalOnlyCount = 0;
-    for (const r of allRecords) {
-      if (r._source === 'matched') matchedCount++;
-      else if (r._source === 'portal') portalOnlyCount++;
-      else odOnlyCount++; // opendata / undefined
-    }
-    const portalTotal = matchedCount + portalOnlyCount;
-    const matchRate = portalTotal > 0 ? ((matchedCount / portalTotal) * 100).toFixed(1) : '\u2014';
-
-    document.getElementById('stat-matched').textContent = matchedCount.toLocaleString();
-    document.getElementById('stat-od-only').textContent = odOnlyCount.toLocaleString();
-    document.getElementById('stat-portal-only').textContent = portalOnlyCount.toLocaleString();
-    document.getElementById('stat-match-rate').textContent = typeof matchRate === 'string' ? matchRate : `${matchRate}%`;
-
-    // Stacked bar widths
-    const totalSources = matchedCount + odOnlyCount + portalOnlyCount;
-    const pct = (n) => totalSources > 0 ? `${(n / totalSources * 100).toFixed(1)}%` : '0%';
-    const m = document.getElementById('source-bar-matched');
-    const od = document.getElementById('source-bar-od');
-    const p = document.getElementById('source-bar-portal');
-    if (m) m.style.width = pct(matchedCount);
-    if (od) od.style.width = pct(odOnlyCount);
-    if (p) p.style.width = pct(portalOnlyCount);
-
     // Charts
     updateStatusChart(allRecords);
     updateComplaintsChart(allRecords);
-    updateAgencyList(allRecords);
-    updateChannelChart(allRecords);
     updateTimelineChart(allRecords);
   }
 
@@ -267,62 +238,6 @@ const Summary = (() => {
         scales: {
           x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#383d47' } },
           y: { ticks: { color: '#9aa0a6', font: { size: 10 } }, grid: { display: false } }
-        }
-      }
-    });
-  }
-
-  function updateAgencyList(records) {
-    const counts = {};
-    for (const r of records) {
-      const a = r.agency_name || r.agency || 'Unknown';
-      counts[a] = (counts[a] || 0) + 1;
-    }
-
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const container = document.getElementById('agency-list');
-    container.innerHTML = sorted.map(([name, count]) =>
-      `<button type="button" class="agency-row" data-agency="${Utils.esc(name)}" title="Filter to ${Utils.esc(name)}"><span class="agency-name">${Utils.esc(truncate(name, 35))}</span><span class="agency-count">${count.toLocaleString()}</span></button>`
-    ).join('');
-    container.querySelectorAll('.agency-row').forEach(btn =>
-      btn.addEventListener('click', () => App.setFilter('agency', btn.dataset.agency))
-    );
-  }
-
-  function updateChannelChart(records) {
-    const counts = {};
-    for (const r of records) {
-      // Normalize channel: collapse any falsy / unknown / case variants into a single bucket
-      const raw = (r.open_data_channel_type || '').trim();
-      const key = raw ? raw.toUpperCase() : 'UNKNOWN';
-      // Title-case for display (MOBILE -> Mobile, UNKNOWN -> Unknown)
-      const display = key.charAt(0) + key.slice(1).toLowerCase();
-      counts[display] = (counts[display] || 0) + 1;
-    }
-
-    const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    const labels = sortedEntries.map(([l]) => l);
-    const data = sortedEntries.map(([, c]) => c);
-    const colors = ['#60a5fa', '#34d399', '#fb923c', '#a78bfa', '#f87171', '#94a3b8'];
-
-    if (channelChart) channelChart.destroy();
-    channelChart = new Chart(document.getElementById('channel-chart'), {
-      type: 'doughnut',
-      data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderWidth: 0 }] },
-      options: {
-        ...chartDefaults,
-        cutout: '60%',
-        onClick: (evt, elements) => {
-          if (!elements.length) return;
-          const channel = labels[elements[0].index];
-          if (channel) App.setFilter('channel', channel);
-        },
-        onHover: (evt, elements) => {
-          evt.native.target.style.cursor = elements.length ? 'pointer' : '';
-        },
-        plugins: {
-          ...chartDefaults.plugins,
-          legend: { position: 'bottom', labels: { color: '#9aa0a6', font: { size: 10 }, padding: 8 } }
         }
       }
     });

@@ -369,23 +369,21 @@
     <!-- ============================================ -->
     <h2>2. Data Sources</h2>
 
-    <h3>NYC Open Data — 311 Service Requests</h3>
+    <h3>NYC Open Data — BID Boundaries</h3>
     <p>
-      The primary data source is the <strong>NYC Open Data 311 Service Requests</strong> dataset,
-      containing over 20 million records since 2010. It is updated daily, provides rich metadata per
-      record, and offers a fully public SODA API with spatial query support.
+      NYC Open Data supplies the parcel polygons used to define each Business Improvement District.
+      It is used for geography only; the 311 requests displayed by this tool come from the live Portal.
     </p>
     <ul>
-      <li>Endpoint: <code>data.cityofnewyork.us/resource/erm2-nwe9.json</code></li>
+      <li>Endpoint: <code>data.cityofnewyork.us/resource/7jdm-inj8.geojson</code></li>
       <li>CORS: <span class="stat-highlight">Fully open</span> (<code>Access-Control-Allow-Origin: *</code>)</li>
-      <li>Spatial queries: <code>within_box()</code>, <code>within_circle()</code>, <code>within_polygon()</code></li>
-      <li>Record limit: None (paginated, unlimited)</li>
+      <li>Contents: BID names, boroughs, websites, and tax-lot parcel polygons</li>
     </ul>
 
     <h3>NYC 311 Portal — Internal API</h3>
     <p>
       The 311 portal at <code>portal.311.nyc.gov</code> runs on Microsoft Dynamics 365 Power Apps
-      Portals. It has an internal pin-fetching endpoint used by its map interface.
+      Portals. Its internal map endpoint is the tool's only source of 311 request records.
     </p>
     <ul>
       <li>Endpoint: <code>portal.311.nyc.gov/entity-pin-fetch-service-requests/</code></li>
@@ -552,7 +550,10 @@
     </table>
 
     <!-- ============================================ -->
-    <h2>4. Record Matching: No Primary Key</h2>
+    <h2>4. Prior Source Comparison Research</h2>
+    <div class="callout">
+      This research informed development, but the current map does not combine or match 311 sources.
+    </div>
     <p>
       The two data sources use <strong>completely different identifier systems</strong> with no crosswalk:
     </p>
@@ -600,22 +601,21 @@
     </ul>
 
     <!-- ============================================ -->
-    <h2>5. Why Open Data Is the Source of Truth</h2>
+    <h2>5. Why This Tool Uses Portal Data</h2>
     <div class="callout success">
-      Open Data is the primary data source for this tool. Here's why:
+      Every displayed 311 request comes directly from the live NYC 311 Portal.
     </div>
     <ul>
-      <li><strong>CORS fully open</strong> — browser can call it directly, no proxy needed</li>
-      <li><strong>No record limit</strong> — paginated queries return all matching results (vs. portal's 100-record cap)</li>
-      <li><strong>Richer fields</strong> — agency, descriptor, resolution, BBL, community board, channel</li>
-      <li><strong>Spatial query support</strong> — <code>within_box()</code> lets us query by bounding box natively</li>
-      <li><strong>Parcel-level geocoding</strong> — 95% of records have BBL (Borough-Block-Lot), 100% have state plane coordinates</li>
-      <li><strong>20+ million records</strong> going back to 2010, updated daily</li>
+      <li><strong>Near-real-time results</strong> from the same source residents use to check requests</li>
+      <li><strong>Portal service-request numbers</strong> and direct links to request detail pages</li>
+      <li><strong>Portal-native statuses</strong>, request types, submitted dates, addresses, and coordinates</li>
+      <li><strong>No cross-source merging</strong> or duplicate reconciliation in the displayed dataset</li>
     </ul>
     <p>
-      The portal's value is its <strong>CRM GUID</strong> which enables deep-linking to the
-      <code>/sr-details/</code> page for full agency response details. When records match (~91%),
-      we include this link in the map popup.
+      The Portal limits each response to 100 records and does not paginate. The server therefore
+      queries one day at a time and subdivides capped days into smaller map areas. Portal pin data
+      does not include agency, submission channel, resolution text, or closed date, so the tool does
+      not infer or supplement those fields.
     </p>
 
     <!-- ============================================ -->
@@ -667,27 +667,12 @@
     </p>
 
     <!-- ============================================ -->
-    <h2>7. Coordinate Accuracy</h2>
+    <h2>7. Coordinate Handling</h2>
     <p>
-      The two data sources geocode addresses independently, producing slightly different coordinates
-      for the same complaint:
-    </p>
-    <table class="data-table">
-      <tr><th>Metric</th><th>Value</th></tr>
-      <tr><td>Mean distance between sources</td><td><strong>37.68m</strong></td></tr>
-      <tr><td>Max distance</td><td>89m</td></tr>
-      <tr><td>Within 50m</td><td>85% of records</td></tr>
-      <tr><td>Within 100m</td><td>100% of records</td></tr>
-    </table>
-    <p>
-      Open Data provides <strong>parcel-level geocoding</strong>: 95% of records have a BBL
-      (Borough-Block-Lot) identifier, and 100% have state plane coordinates. This means Open Data
-      coordinates point to the actual tax lot associated with the address.
-    </p>
-    <p>
-      The portal appears to use a different geocoding service that produces rooftop or street-centerline
-      coordinates. For map display, we use Open Data coordinates as primary (matched and OD-only records)
-      and portal coordinates only for portal-only records.
+      Map pins use the coordinates returned by the 311 Portal. After the server fetches pins within
+      the selected BID's bounding box, the browser applies a point-in-polygon test against the buffered
+      BID boundary. This removes nearby requests that fall inside the rectangular query area but outside
+      the district.
     </p>
 
     <!-- ============================================ -->
@@ -697,24 +682,18 @@
       <li>User selects a BID from the dropdown</li>
       <li>The raw tax lot parcels are buffered by 30m and merged into a single boundary</li>
       <li>A bounding box (with 50m padding) is computed around the buffered boundary</li>
-      <li>Two parallel API calls are made:
-        <ul>
-          <li><strong>Open Data</strong> (direct from browser): SODA <code>within_box()</code> query with date range, paginated</li>
-          <li><strong>Portal</strong> (via server proxy): Pin-fetch with bounding box coordinates, max 100 results</li>
-        </ul>
-      </li>
+      <li>The server proxy queries the 311 Portal by date and bounding box, splitting the range into daily windows</li>
+      <li>Days that reach the Portal's 100-record cap are queried again in a 2x2 spatial grid</li>
       <li>Returned points are filtered client-side using Turf.js <code>booleanPointInPolygon()</code> against the buffered boundary</li>
-      <li>Records are matched between sources using the composite key (timestamp + type + address)</li>
-      <li>Results are classified as Matched (both), Open Data only, or Portal only</li>
-      <li>Pins are plotted with color-coding by complaint type (fill) and source (border)</li>
+      <li>Pins are plotted and color-coded by complaint type</li>
     </ol>
 
-    <h3>Pin Types</h3>
+    <h3>Available Portal Fields</h3>
     <table class="data-table">
-      <tr><th>Pin Border</th><th>Source</th><th>Expected %</th><th>What You Get</th></tr>
-      <tr><td><span style="color: var(--green);">&bull;</span> Green</td><td>Matched (both)</td><td>~85%</td><td>Full Open Data fields + portal detail link</td></tr>
-      <tr><td><span style="color: var(--blue);">&bull;</span> Blue</td><td>Open Data only</td><td>~9%</td><td>Rich fields, no portal link</td></tr>
-      <tr><td><span style="color: var(--orange);">&bull;</span> Orange</td><td>Portal only</td><td>~6%</td><td>Basic fields + portal detail link</td></tr>
+      <tr><th>Available</th><th>Not Included in Pin Data</th></tr>
+      <tr><td>Request type, status, submitted date</td><td>Agency and submission channel</td></tr>
+      <tr><td>Address and coordinates</td><td>Resolution text and closed date</td></tr>
+      <tr><td>Service-request number and detail link</td><td>BBL, ZIP, and community board</td></tr>
     </table>
 
     <!-- ============================================ -->
@@ -778,12 +757,12 @@
       <tr><td>Charts</td><td>Chart.js</td><td>Lightweight charting with no build step</td></tr>
       <tr><td>Date Picker</td><td>Flatpickr</td><td>Tiny, range-mode support, dark theme</td></tr>
       <tr><td>Heatmap</td><td>Leaflet.heat</td><td>Density visualization layer</td></tr>
-      <tr><td>Primary API</td><td>NYC Open Data SODA</td><td>CORS open, unlimited records, spatial queries</td></tr>
-      <tr><td>Secondary API</td><td>311 Portal (proxied)</td><td>Portal detail links, supplementary data</td></tr>
+      <tr><td>311 Request API</td><td>NYC 311 Portal (proxied)</td><td>Live request pins, statuses, and detail links</td></tr>
+      <tr><td>Boundary API</td><td>NYC Open Data</td><td>BID parcel polygons and district metadata</td></tr>
     </table>
 
     <p style="margin-top: 40px; color: var(--text-muted); font-size: 12px; text-align: center;">
-      Built with Claude &middot; Data sourced from NYC Open Data and the NYC 311 Portal
+      311 requests sourced from the NYC 311 Portal &middot; BID boundaries sourced from NYC Open Data
     </p>
   </div>
 

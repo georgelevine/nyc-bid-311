@@ -3,6 +3,9 @@
  */
 const MapView = (() => {
   let map;
+  let bidOverviewLayer = null;
+  let bidOverviewFeatures = [];
+  let selectedBIDIndex = null;
   let parcelsLayer = null;
   let bufferLayer = null;
   let markersLayer = null;
@@ -64,11 +67,80 @@ const MapView = (() => {
   }
 
   /**
+   * Draw every BID as a lightweight, clickable overview layer.
+   */
+  function drawBIDOverview(geojson, onSelect) {
+    if (bidOverviewLayer) map.removeLayer(bidOverviewLayer);
+    bidOverviewFeatures = [];
+    selectedBIDIndex = null;
+
+    const featureIndexes = new Map(geojson.features.map((feature, index) => [feature, index]));
+    bidOverviewLayer = L.geoJSON(geojson, {
+      style: (feature) => overviewStyle(featureIndexes.get(feature)),
+      onEachFeature: (feature, layer) => {
+        const index = featureIndexes.get(feature);
+        const name = feature.properties.f_all_bi_2 || `BID ${index}`;
+        bidOverviewFeatures[index] = layer;
+        layer.bindTooltip(name, {
+          className: 'bid-map-tooltip',
+          direction: 'top',
+          sticky: true,
+          opacity: 1
+        });
+        layer.on({
+          mouseover: () => {
+            if (index !== selectedBIDIndex) layer.setStyle(overviewStyle(index, false, true));
+            layer.bringToFront();
+          },
+          mouseout: () => {
+            layer.setStyle(overviewStyle(index, index === selectedBIDIndex));
+          },
+          click: (event) => {
+            L.DomEvent.stopPropagation(event);
+            if (typeof onSelect === 'function') onSelect(index);
+          }
+        });
+      }
+    }).addTo(map);
+
+    if (bidOverviewLayer.getBounds().isValid()) {
+      const bounds = bidOverviewLayer.getBounds();
+      const overviewZoom = map.getContainer().clientWidth <= 768 ? 10 : 11;
+      map.setView(bounds.getCenter(), overviewZoom, { animate: false });
+    }
+  }
+
+  function overviewStyle(index, selected = false, hovered = false) {
+    return {
+      fillColor: '#4f9cf7',
+      fillOpacity: selected ? 0.28 : hovered ? 0.2 : 0.08,
+      color: selected ? '#fbbf24' : hovered ? '#8cc4ff' : '#4f9cf7',
+      opacity: selected ? 1 : 0.92,
+      weight: selected ? 2.5 : hovered ? 2 : 1.2,
+      className: 'bid-overview-boundary'
+    };
+  }
+
+  function setSelectedBID(index) {
+    if (selectedBIDIndex != null && bidOverviewFeatures[selectedBIDIndex]) {
+      bidOverviewFeatures[selectedBIDIndex].setStyle(overviewStyle(selectedBIDIndex));
+    }
+    selectedBIDIndex = index;
+    const layer = bidOverviewFeatures[index];
+    if (layer) {
+      layer.setStyle(overviewStyle(index, true));
+      layer.bringToFront();
+    }
+  }
+
+  /**
    * Draw BID polygon layers
    */
-  function drawBIDPolygon(processedPoly) {
+  function drawBIDPolygon(processedPoly, bidIndex) {
     clearPolygonLayers();
     if (!processedPoly) return;
+
+    setSelectedBID(bidIndex);
 
     parcelsLayer = L.geoJSON(processedPoly.raw, {
       style: {
@@ -249,10 +321,8 @@ const MapView = (() => {
    */
   function buildPopupForRecord(rec) {
     const statusClass = (rec.status || '').toLowerCase().replace(/\s+/g, '-');
-    const sourceLabel = rec._source === 'matched' ? 'Both Sources' :
-                        rec._source === 'portal' ? 'Portal Only' : 'Open Data Only';
-    const sourceClass = rec._source === 'matched' ? 'source-matched' :
-                        rec._source === 'portal' ? 'source-portal' : 'source-od';
+    const sourceLabel = '311 Portal';
+    const sourceClass = 'source-portal';
 
     let html = `<div class="popup-title">${Utils.esc(rec.complaint_type || 'Unknown')}</div>`;
 
@@ -361,7 +431,7 @@ const MapView = (() => {
   }
 
   return {
-    init, drawBIDPolygon, plotRecords, buildCategoryLegend, updateHeatmap,
+    init, drawBIDOverview, drawBIDPolygon, plotRecords, buildCategoryLegend, updateHeatmap,
     toggleHeatmap, toggleParcels, toggleBuffer, clearMarkers, clearPolygonLayers,
     getMap, TYPE_COLORS
   };

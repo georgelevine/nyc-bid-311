@@ -1,20 +1,10 @@
 /**
- * data.js — API calls to NYC Open Data (direct) and 311 Portal (via proxy)
+ * data.js — BID boundaries and live NYC 311 Portal data
  */
 const Data = (() => {
   const BID_URL = 'https://data.cityofnewyork.us/resource/7jdm-inj8.geojson?$limit=100';
-  const OD_311_URL = 'https://data.cityofnewyork.us/resource/erm2-nwe9.json';
-  const PORTAL_PROXY_URL = '/api/portal-pins';
-  const OD_PAGE_SIZE = 10000;
   const BID_CACHE_KEY = 'nyc_bid_geojson';
   const BID_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-  const OD_FIELDS = [
-    'unique_key', 'complaint_type', 'descriptor', 'status', 'agency', 'agency_name',
-    'created_date', 'closed_date', 'resolution_description', 'resolution_action_updated_date',
-    'incident_address', 'city', 'borough', 'incident_zip', 'latitude', 'longitude',
-    'community_board', 'open_data_channel_type', 'location_type', 'bbl'
-  ].join(',');
 
   /**
    * Fetch BID GeoJSON (with localStorage caching)
@@ -42,56 +32,6 @@ const Data = (() => {
     } catch (e) { /* storage full, skip */ }
 
     return data;
-  }
-
-  /**
-   * Fetch 311 requests from Open Data within a bounding box + date range.
-   * paddedBbox: [west, south, east, north]
-   * fromDate, toDate: 'YYYY-MM-DD'
-   * onProgress: callback(count) for progress updates
-   */
-  async function fetch311OpenData(paddedBbox, fromDate, toDate, onProgress) {
-    const [west, south, east, north] = paddedBbox;
-    const whereClause = [
-      `within_box(location, ${south}, ${west}, ${north}, ${east})`,
-      `created_date >= '${fromDate}T00:00:00'`,
-      `created_date <= '${toDate}T23:59:59'`
-    ].join(' AND ');
-
-    let allResults = [];
-    let offset = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const params = new URLSearchParams({
-        '$where': whereClause,
-        '$select': OD_FIELDS,
-        '$limit': OD_PAGE_SIZE,
-        '$offset': offset,
-        '$order': 'created_date DESC'
-      });
-
-      const resp = await fetch(`${OD_311_URL}?${params}`);
-      if (!resp.ok) throw new Error(`Open Data fetch failed: ${resp.status}`);
-      const page = await resp.json();
-
-      allResults = allResults.concat(page);
-      if (onProgress) onProgress(allResults.length);
-
-      if (page.length < OD_PAGE_SIZE) {
-        hasMore = false;
-      } else {
-        offset += OD_PAGE_SIZE;
-      }
-    }
-
-    // Parse coordinates
-    return allResults.map(r => ({
-      ...r,
-      latitude: parseFloat(r.latitude) || null,
-      longitude: parseFloat(r.longitude) || null,
-      _source: 'opendata'
-    })).filter(r => r.latitude && r.longitude);
   }
 
   /**
@@ -138,5 +78,33 @@ const Data = (() => {
     }
   }
 
-  return { fetchBIDs, fetch311OpenData, fetch311Portal };
+  function portalRecord(pin) {
+    return {
+      unique_key: null,
+      complaint_type: pin.problem,
+      descriptor: null,
+      status: pin.status,
+      agency: null,
+      agency_name: null,
+      created_date: pin.submitteddate,
+      closed_date: null,
+      resolution_description: null,
+      incident_address: pin.address,
+      city: null,
+      borough: null,
+      incident_zip: null,
+      latitude: pin.latitude,
+      longitude: pin.longitude,
+      community_board: null,
+      open_data_channel_type: null,
+      location_type: null,
+      bbl: null,
+      srnumber: pin.srnumber,
+      portalUrl: pin.portalUrl,
+      portalId: pin.id,
+      _source: 'portal'
+    };
+  }
+
+  return { fetchBIDs, fetch311Portal, portalRecord };
 })();

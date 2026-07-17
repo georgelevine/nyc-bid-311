@@ -16,6 +16,7 @@ const Filters = (() => {
     initQuickDates();
     initDrawer();
     bindEvents();
+    MapView.drawBIDOverview(bidData, selectBIDByIndex);
   }
 
   // ===== Drawer / Sidebar state =====
@@ -80,7 +81,7 @@ const Filters = (() => {
 
     // Set initial state based on viewport
     if (isMobile()) {
-      setSidebarState('half');
+      setSidebarState(window.location.hash.includes('bid=') ? 'half' : 'collapsed');
     } else {
       setSidebarState('open');
     }
@@ -183,7 +184,7 @@ const Filters = (() => {
     }
   }
 
-  function selectBID(bid) {
+  function selectBID(bid, options = {}) {
     const input = document.getElementById('bid-search');
     const dropdown = document.getElementById('bid-dropdown-list');
 
@@ -203,7 +204,7 @@ const Filters = (() => {
     const processed = Polygons.processFeature(feature);
     if (processed) {
       selectedBID.processed = processed;
-      MapView.drawBIDPolygon(processed);
+      MapView.drawBIDPolygon(processed, bid.idx);
     }
 
     showBIDInfo();
@@ -213,10 +214,15 @@ const Filters = (() => {
 
     // Auto-load 311 data as soon as a BID is picked and a date range exists.
     // No need to make the user hunt for the Load button.
-    if (datePicker && datePicker.selectedDates.length === 2) {
+    if (!options.suppressLoad && datePicker && datePicker.selectedDates.length === 2) {
       // Defer one tick so the polygon has been drawn before we start the fetch spinner
       setTimeout(() => onLoadClick(), 50);
     }
+  }
+
+  function selectBIDByIndex(index) {
+    const bid = bidList.find(item => item.idx === index);
+    if (bid) selectBID(bid);
   }
 
   // ===== Quick Date Buttons =====
@@ -363,7 +369,7 @@ const Filters = (() => {
 
     if (bidName && bidData) {
       const bid = bidList.find(b => b.name === bidName);
-      if (bid) selectBID(bid);
+      if (bid) selectBID(bid, { suppressLoad: true });
     }
     if (from && to && datePicker) {
       datePicker.setDate([from, to]);

@@ -18,7 +18,7 @@ if (window.location.protocol === 'file:') {
 
 const App = (() => {
   let allRecords = [];
-  let matchResult = null;
+  let hasLoadedData = false;
   let typeColorMap = {};
 
   const activeFilters = {
@@ -72,9 +72,13 @@ const App = (() => {
    * Main data loading (fetch + normalize + initial render)
    */
   async function loadData(selectedBID, fromDate, toDate) {
-    showLoading('Fetching 311 data...');
+    showLoading('Fetching live 311 Portal data...');
     hideError();
     MapView.clearMarkers();
+    allRecords = [];
+    hasLoadedData = false;
+    document.getElementById('summary-section').classList.add('hidden');
+    document.getElementById('export-csv-btn').classList.add('hidden');
 
     const processed = selectedBID.processed;
     if (!processed) {
@@ -83,30 +87,15 @@ const App = (() => {
     }
 
     try {
-      const [odRecords, portalPins] = await Promise.all([
-        Data.fetch311OpenData(processed.paddedBbox, fromDate, toDate, (count) => {
-          showLoading('Loading Open Data...');
-        }),
-        Data.fetch311Portal(processed.paddedBbox, fromDate, toDate, { refresh: true })
-      ]);
+      const portalPins = await Data.fetch311Portal(processed.paddedBbox, fromDate, toDate);
 
       showLoading('Filtering to BID boundary...');
 
-      const odFiltered = odRecords.filter(r =>
-        Polygons.isPointInside(r.longitude, r.latitude, processed)
-      );
       const portalFiltered = portalPins.filter(r =>
         r.latitude && r.longitude && Polygons.isPointInside(r.longitude, r.latitude, processed)
       );
 
-      showLoading('Matching records...');
-      matchResult = Matching.matchRecords(odFiltered, portalFiltered);
-
-      allRecords = [
-        ...matchResult.matched.map(Matching.mergeRecord),
-        ...matchResult.odOnly.map(Matching.odRecord),
-        ...matchResult.portalOnly.map(Matching.portalRecord)
-      ];
+      allRecords = portalFiltered.map(Data.portalRecord);
 
       if (allRecords.length === 0) {
         showError('No 311 requests found in this BID for the selected date range.');
@@ -114,6 +103,7 @@ const App = (() => {
         return;
       }
 
+      hasLoadedData = true;
       typeColorMap = buildTypeColorMap(allRecords);
 
       document.getElementById('export-csv-btn').classList.remove('hidden');
@@ -122,7 +112,7 @@ const App = (() => {
       applyFilters();
       hideLoading();
 
-      console.log(`Loaded ${allRecords.length} records (${matchResult.matched.length} matched, ${matchResult.odOnly.length} OD-only, ${matchResult.portalOnly.length} portal-only)`);
+      console.log(`Loaded ${allRecords.length} live 311 Portal records`);
     } catch (err) {
       console.error('Data loading error:', err);
       showError('Error loading data: ' + err.message);
@@ -134,7 +124,7 @@ const App = (() => {
    * Single render pipeline — every filter change eventually calls this.
    */
   function applyFilters() {
-    if (!matchResult || allRecords.length === 0) return;
+    if (!hasLoadedData || allRecords.length === 0) return;
 
     const visible = allRecords.filter(matchesAll);
 
@@ -150,7 +140,7 @@ const App = (() => {
     MapView.buildCategoryLegend(typeCounts, typeColorMap, activeFilters.complaintType);
     MapView.plotRecords(visible, typeColorMap);
     MapView.updateHeatmap(visible);
-    Summary.update(matchResult, visible, activeFilters);
+    Summary.update(visible, activeFilters);
   }
 
   /**
@@ -228,21 +218,14 @@ const App = (() => {
     if (visible.length === 0) return;
 
     const headers = [
-      'Source', 'Unique Key', 'SR Number', 'Complaint Type', 'Descriptor',
-      'Status', 'Agency', 'Created Date', 'Closed Date', 'Address',
-      'Borough', 'Zip', 'Community Board', 'Channel', 'Latitude', 'Longitude',
-      'Resolution', 'Portal URL'
+      'Source', 'SR Number', 'Complaint Type', 'Status', 'Submitted Date',
+      'Address', 'Latitude', 'Longitude', 'Portal URL'
     ];
 
     const rows = visible.map(r => [
-      r._source, r.unique_key || '', r.srnumber || '',
-      r.complaint_type || '', r.descriptor || '', r.status || '',
-      r.agency_name || r.agency || '', r.created_date || '', r.closed_date || '',
-      r.incident_address || '', r.borough || '', r.incident_zip || '',
-      r.community_board || '', r.open_data_channel_type || '',
-      r.latitude || '', r.longitude || '',
-      (r.resolution_description || '').replace(/[\r\n]+/g, ' ').substring(0, 500),
-      r.portalUrl || ''
+      '311 Portal', r.srnumber || '', r.complaint_type || '', r.status || '',
+      r.created_date || '', r.incident_address || '', r.latitude || '',
+      r.longitude || '', r.portalUrl || ''
     ]);
 
     const csvContent = [headers, ...rows]
@@ -286,9 +269,8 @@ const App = (() => {
   }
 
   function loadingOverlayMessage(message) {
-    if (/Open Data/i.test(message)) return 'Fetching official 311 records...';
+    if (/Portal/i.test(message)) return 'Fetching live 311 Portal records...';
     if (/Filtering/i.test(message)) return 'Filtering to the selected BID...';
-    if (/Matching/i.test(message)) return 'Merging live and official records...';
     if (/BID boundaries/i.test(message)) return 'Loading BID boundaries...';
     return message.replace(/\s+\d[\d,]*\s+records?/i, '');
   }
