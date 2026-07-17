@@ -145,6 +145,7 @@ button { font-family: inherit; }
 
 /* Drawer handle — mobile only */
 #drawer-handle { display: none; }
+.drawer-tabs { display: none; }
 
 .sidebar-section { margin-bottom: 22px; }
 .sidebar-section:last-child { margin-bottom: 0; }
@@ -962,6 +963,34 @@ select option { background: var(--bg-input); color: var(--text-primary); }
     min-width: 0;
     max-width: 100%;
   }
+  .drawer-tabs {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0 16px 8px;
+    padding: 3px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #sidebar.has-results .drawer-tabs { display: grid; }
+  .drawer-tab {
+    min-height: 36px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .drawer-tab.active {
+    background: var(--accent);
+    color: #fff;
+  }
+  #sidebar.has-results[data-view="summary"] #filter-section { display: none; }
+  #sidebar.has-results[data-view="filters"] #summary-section { display: none; }
   .drawer-handle-bar {
     width: 42px;
     height: 5px;

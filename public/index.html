@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/style.css?v=29" />
+  <link rel="stylesheet" href="css/style.css?v=30" />
 </head>
 <body>
   <!-- Header -->
@@ -51,6 +51,11 @@
           <span id="drawer-handle-title">Filters</span>
           <span id="drawer-handle-subtitle">Choose a BID to begin</span>
         </div>
+      </div>
+
+      <div id="drawer-tabs" class="drawer-tabs" role="tablist" aria-label="BID details view">
+        <button class="drawer-tab active" data-drawer-view="summary" role="tab" aria-selected="true">Summary</button>
+        <button class="drawer-tab" data-drawer-view="filters" role="tab" aria-selected="false">Filters</button>
       </div>
 
       <div id="sidebar-scroll">
@@ -171,12 +176,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <!-- App modules (utils first). Version bump busts browser cache. -->
-  <script src="js/utils.js?v=29"></script>
-  <script src="js/polygons.js?v=29"></script>
-  <script src="js/data.js?v=29"></script>
-  <script src="js/map.js?v=29"></script>
-  <script src="js/filters.js?v=29"></script>
-  <script src="js/summary.js?v=29"></script>
-  <script src="js/app.js?v=29"></script>
+  <script src="js/utils.js?v=30"></script>
+  <script src="js/polygons.js?v=30"></script>
+  <script src="js/data.js?v=30"></script>
+  <script src="js/map.js?v=30"></script>
+  <script src="js/filters.js?v=30"></script>
+  <script src="js/summary.js?v=30"></script>
+  <script src="js/app.js?v=30"></script>
 </body>
 </html>

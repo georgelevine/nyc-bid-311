@@ -61,6 +61,10 @@ const Filters = (() => {
       });
     }
 
+    document.querySelectorAll('.drawer-tab').forEach(tab => {
+      tab.addEventListener('click', () => setDrawerView(tab.dataset.drawerView));
+    });
+
     // Legend toggle (mobile defaults to closed — FAB-only — to keep map visible)
     const legend = document.getElementById('map-legend');
     if (legend) {
@@ -104,6 +108,16 @@ const Filters = (() => {
 
     if (selectedBID) {
       titleEl.textContent = selectedBID.name;
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar.dataset.contentState === 'loading') {
+        subEl.textContent = 'Loading 311 data...';
+        return;
+      }
+      if (sidebar.dataset.contentState === 'ready') {
+        const count = Number(sidebar.dataset.resultCount || 0).toLocaleString();
+        subEl.textContent = `${count} requests - View summary`;
+        return;
+      }
       const dates = datePicker ? datePicker.selectedDates : [];
       if (dates.length === 2) {
         subEl.textContent = `${formatDateStr(dates[0])} to ${formatDateStr(dates[1])}`;
@@ -114,6 +128,34 @@ const Filters = (() => {
       titleEl.textContent = 'Filters';
       subEl.textContent = 'Choose a BID to begin';
     }
+  }
+
+  function setDrawerView(view) {
+    const next = view === 'filters' ? 'filters' : 'summary';
+    const sidebar = document.getElementById('sidebar');
+    sidebar.dataset.view = next;
+    document.querySelectorAll('.drawer-tab').forEach(tab => {
+      const active = tab.dataset.drawerView === next;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+
+  function setResultsState(state, count = 0) {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.dataset.contentState = state;
+    sidebar.dataset.resultCount = String(count);
+    sidebar.classList.toggle('has-results', state === 'ready');
+
+    if (state === 'ready') {
+      setDrawerView('summary');
+      if (isMobile()) setSidebarState('half');
+      document.getElementById('load-btn').textContent = 'Refresh 311 Data';
+    } else {
+      document.getElementById('load-btn').textContent = 'Load 311 Data';
+      if (state === 'error' && isMobile()) setSidebarState('half');
+    }
+    updateDrawerHandle();
   }
 
   // ===== BID Search Dropdown =====
@@ -200,6 +242,7 @@ const Filters = (() => {
       website: bid.website,
       yearFounded: bid.yearFounded
     };
+    setResultsState('idle');
 
     const processed = Polygons.processFeature(feature);
     if (processed) {
@@ -317,7 +360,6 @@ const Filters = (() => {
     const dates = datePicker.selectedDates;
     if (dates.length < 2) return;
     App.loadData(selectedBID, formatDateStr(dates[0]), formatDateStr(dates[1]));
-    updateDrawerHandle();
     // On mobile, collapse drawer so map is visible while loading
     if (isMobile()) setSidebarState('collapsed');
   }
@@ -396,6 +438,6 @@ const Filters = (() => {
   function formatDateStr(d) { return d.toISOString().split('T')[0]; }
 
   return {
-    init, getSelectedBID, getDateRange, restoreFromHash, updateHash
+    init, getSelectedBID, getDateRange, restoreFromHash, updateHash, setResultsState
   };
 })();

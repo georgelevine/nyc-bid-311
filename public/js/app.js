@@ -73,6 +73,7 @@ const App = (() => {
    */
   async function loadData(selectedBID, fromDate, toDate) {
     showLoading('Fetching live 311 Portal data...');
+    Filters.setResultsState('loading');
     hideError();
     MapView.clearMarkers();
     allRecords = [];
@@ -99,6 +100,7 @@ const App = (() => {
 
       if (allRecords.length === 0) {
         showError('No 311 requests found in this BID for the selected date range.');
+        Filters.setResultsState('error');
         hideLoading();
         return;
       }
@@ -110,12 +112,14 @@ const App = (() => {
       Filters.updateHash();
 
       applyFilters();
+      Filters.setResultsState('ready', allRecords.length);
       hideLoading();
 
       console.log(`Loaded ${allRecords.length} live 311 Portal records`);
     } catch (err) {
       console.error('Data loading error:', err);
       showError('Error loading data: ' + err.message);
+      Filters.setResultsState('error');
       hideLoading();
     }
   }
