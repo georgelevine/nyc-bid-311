@@ -7,7 +7,6 @@ const MapView = (() => {
   let bidOverviewFeatures = [];
   let selectedBIDIndex = null;
   let touchPreviewBIDIndex = null;
-  let touchSelectionTimer = null;
   let parcelsLayer = null;
   let bufferLayer = null;
   let markersLayer = null;
@@ -211,20 +210,14 @@ const MapView = (() => {
             L.DomEvent.stopPropagation(event);
             if (index === selectedBIDIndex) return;
 
-            if (isTouchDevice()) {
+            if (isTouchDevice() && touchPreviewBIDIndex !== index) {
               closeTouchPreview();
               touchPreviewBIDIndex = index;
               layer.openTooltip(event.latlng);
-              touchSelectionTimer = window.setTimeout(() => {
-                touchSelectionTimer = null;
-                if (touchPreviewBIDIndex !== index) return;
-                touchPreviewBIDIndex = null;
-                layer.closeTooltip();
-                if (typeof onSelect === 'function') onSelect(index);
-              }, 300);
               return;
             }
 
+            touchPreviewBIDIndex = null;
             layer.closeTooltip();
             if (typeof onSelect === 'function') onSelect(index);
           },
@@ -253,10 +246,6 @@ const MapView = (() => {
   }
 
   function closeTouchPreview() {
-    if (touchSelectionTimer !== null) {
-      window.clearTimeout(touchSelectionTimer);
-      touchSelectionTimer = null;
-    }
     if (touchPreviewBIDIndex === null) return;
     const layer = bidOverviewFeatures[touchPreviewBIDIndex];
     if (layer) layer.closeTooltip();
