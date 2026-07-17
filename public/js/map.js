@@ -29,7 +29,9 @@ const MapView = (() => {
     map = L.map('map', {
       center: [40.7128, -74.006],
       zoom: 12,
-      zoomControl: false         // add manually so we can position it
+      zoomControl: false,        // add manually so we can position it
+      doubleClickZoom: true,
+      touchZoom: true
       // preferCanvas removed — it breaks marker-cluster spiderfy for circleMarker
     });
 
@@ -89,6 +91,10 @@ const MapView = (() => {
         });
         layer.on({
           mouseover: () => {
+            if (index === selectedBIDIndex) {
+              layer.closeTooltip();
+              return;
+            }
             if (index !== selectedBIDIndex) layer.setStyle(overviewStyle(index, false, true));
             layer.bringToFront();
           },
@@ -97,7 +103,15 @@ const MapView = (() => {
           },
           click: (event) => {
             L.DomEvent.stopPropagation(event);
+            layer.closeTooltip();
+            if (index === selectedBIDIndex) return;
             if (typeof onSelect === 'function') onSelect(index);
+          },
+          dblclick: (event) => {
+            L.DomEvent.stopPropagation(event);
+            layer.closeTooltip();
+            const nextZoom = Math.min(map.getZoom() + 1, map.getMaxZoom());
+            map.setView(event.latlng, nextZoom, { animate: true });
           }
         });
       }
@@ -122,14 +136,18 @@ const MapView = (() => {
   }
 
   function setSelectedBID(index) {
-    if (selectedBIDIndex != null && bidOverviewFeatures[selectedBIDIndex]) {
-      bidOverviewFeatures[selectedBIDIndex].setStyle(overviewStyle(selectedBIDIndex));
-    }
     selectedBIDIndex = index;
-    const layer = bidOverviewFeatures[index];
-    if (layer) {
-      layer.setStyle(overviewStyle(index, true));
-      layer.bringToFront();
+    for (let i = 0; i < bidOverviewFeatures.length; i++) {
+      const layer = bidOverviewFeatures[i];
+      if (!layer) continue;
+      layer.closeTooltip();
+      if (i === index) {
+        if (!bidOverviewLayer.hasLayer(layer)) bidOverviewLayer.addLayer(layer);
+        layer.setStyle(overviewStyle(i, true));
+        layer.bringToFront();
+      } else if (bidOverviewLayer.hasLayer(layer)) {
+        bidOverviewLayer.removeLayer(layer);
+      }
     }
   }
 
