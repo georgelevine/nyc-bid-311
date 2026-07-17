@@ -156,7 +156,7 @@ const MapView = (() => {
   }
 
   /**
-   * Draw every BID as a lightweight, clickable overview layer.
+   * Draw every BID's buffered boundary as a lightweight, clickable overview layer.
    */
   function drawBIDOverview(geojson, onSelect) {
     if (bidOverviewLayer) map.removeLayer(bidOverviewLayer);
@@ -164,11 +164,23 @@ const MapView = (() => {
     selectedBIDIndex = null;
     touchPreviewBIDIndex = null;
 
-    const featureIndexes = new Map(geojson.features.map((feature, index) => [feature, index]));
-    bidOverviewLayer = L.geoJSON(geojson, {
-      style: (feature) => overviewStyle(featureIndexes.get(feature)),
+    const bufferedOverview = {
+      type: 'FeatureCollection',
+      features: geojson.features.map((feature, index) => {
+        const processed = Polygons.processFeature(feature);
+        const displayFeature = processed ? processed.buffered : feature;
+        return {
+          type: 'Feature',
+          properties: { ...(feature.properties || {}), __bidIndex: index },
+          geometry: displayFeature.geometry
+        };
+      })
+    };
+
+    bidOverviewLayer = L.geoJSON(bufferedOverview, {
+      style: (feature) => overviewStyle(feature.properties.__bidIndex),
       onEachFeature: (feature, layer) => {
-        const index = featureIndexes.get(feature);
+        const index = feature.properties.__bidIndex;
         const name = feature.properties.f_all_bi_2 || `BID ${index}`;
         bidOverviewFeatures[index] = layer;
         layer.bindTooltip(name, {
@@ -254,11 +266,10 @@ const MapView = (() => {
       const layer = bidOverviewFeatures[i];
       if (!layer) continue;
       layer.closeTooltip();
-      if (!bidOverviewLayer.hasLayer(layer)) bidOverviewLayer.addLayer(layer);
       if (i === index) {
-        layer.setStyle(overviewStyle(i, true));
-        layer.bringToFront();
+        if (bidOverviewLayer.hasLayer(layer)) bidOverviewLayer.removeLayer(layer);
       } else {
+        if (!bidOverviewLayer.hasLayer(layer)) bidOverviewLayer.addLayer(layer);
         layer.setStyle(overviewStyle(i));
       }
     }

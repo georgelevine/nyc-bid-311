@@ -4,6 +4,7 @@
  */
 const Polygons = (() => {
   const BUFFER_METERS = 30; // Half a typical NYC street width
+  const processedCache = new WeakMap();
 
   /**
    * Buffer a BID feature's MultiPolygon to fill street gaps.
@@ -11,6 +12,7 @@ const Polygons = (() => {
    */
   function processFeature(feature) {
     if (!feature || !feature.geometry) return null;
+    if (processedCache.has(feature)) return processedCache.get(feature);
 
     try {
       // Buffer each polygon to expand into streets
@@ -58,13 +60,15 @@ const Polygons = (() => {
         bbox[3] + PAD  // north
       ];
 
-      return {
+      const processed = {
         raw: feature,
         buffered: dissolved,
         bbox,
         paddedBbox,
         bufferDistance: BUFFER_METERS
       };
+      processedCache.set(feature, processed);
+      return processed;
     } catch (err) {
       console.error('Polygon processing error:', err);
       return null;
