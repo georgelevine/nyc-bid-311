@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/style.css?v=25" />
+  <link rel="stylesheet" href="css/style.css?v=26" />
 </head>
 <body>
   <!-- Header -->
@@ -143,20 +143,20 @@
         </button>
         <div id="legend-body">
           <div id="legend-header">
-            <h4>Show complaint types</h4>
-            <button id="legend-close" class="legend-btn legend-close-btn" aria-label="Close layers panel" title="Close">Close</button>
+            <h4>Map display</h4>
+            <button id="legend-close" class="legend-btn legend-close-btn" aria-label="Close map display panel" title="Close">&times;</button>
+          </div>
+          <div id="legend-layers">
+            <label class="legend-toggle"><input type="checkbox" id="toggle-parcels" checked /><span>Parcels</span></label>
+            <label class="legend-toggle"><input type="checkbox" id="toggle-buffer" checked /><span>Boundary</span></label>
+            <label class="legend-toggle"><input type="checkbox" id="toggle-heatmap" /><span>Heatmap</span></label>
           </div>
           <div id="legend-actions-row">
-            <button id="legend-select-all" class="legend-btn">Show all</button>
-            <button id="legend-deselect-all" class="legend-btn">Hide all</button>
+            <span class="legend-section-label">Complaint types</span>
+            <button id="legend-select-all" class="legend-btn">All</button>
+            <button id="legend-deselect-all" class="legend-btn">None</button>
           </div>
           <div id="legend-categories"></div>
-          <div id="legend-layers">
-            <h4>Layers</h4>
-            <label class="legend-toggle"><input type="checkbox" id="toggle-parcels" checked /> BID Parcels</label>
-            <label class="legend-toggle"><input type="checkbox" id="toggle-buffer" checked /> Buffered Boundary</label>
-            <label class="legend-toggle"><input type="checkbox" id="toggle-heatmap" /> Heatmap</label>
-          </div>
         </div>
       </div>
     </main>
@@ -171,12 +171,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <!-- App modules (utils first). Version bump busts browser cache. -->
-  <script src="js/utils.js?v=24"></script>
-  <script src="js/polygons.js?v=24"></script>
-  <script src="js/data.js?v=24"></script>
-  <script src="js/map.js?v=24"></script>
-  <script src="js/filters.js?v=24"></script>
-  <script src="js/summary.js?v=24"></script>
-  <script src="js/app.js?v=24"></script>
+  <script src="js/utils.js?v=26"></script>
+  <script src="js/polygons.js?v=26"></script>
+  <script src="js/data.js?v=26"></script>
+  <script src="js/map.js?v=26"></script>
+  <script src="js/filters.js?v=26"></script>
+  <script src="js/summary.js?v=26"></script>
+  <script src="js/app.js?v=26"></script>
 </body>
 </html>

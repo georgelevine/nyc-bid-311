@@ -64,8 +64,77 @@ const MapView = (() => {
       }
     });
     map.addLayer(markersLayer);
+    installMobileDoubleTapZoom();
 
     return map;
+  }
+
+  function installMobileDoubleTapZoom() {
+    const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+    if (!hasTouch) return;
+
+    map.doubleClickZoom.disable();
+    const container = map.getContainer();
+    let touchStart = null;
+    let touchMoved = false;
+    let lastTap = null;
+
+    const touchPoint = (touch) => {
+      const rect = container.getBoundingClientRect();
+      return L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+    };
+    const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const isMapGesture = (target) => !target.closest(
+      '#map-legend, .leaflet-control, .leaflet-popup, .leaflet-tooltip'
+    );
+
+    container.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1 || !isMapGesture(event.target)) {
+        touchStart = null;
+        touchMoved = false;
+        lastTap = null;
+        return;
+      }
+      touchStart = { point: touchPoint(event.touches[0]), time: Date.now() };
+      touchMoved = false;
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (event) => {
+      if (!touchStart || event.touches.length !== 1) return;
+      if (distance(touchStart.point, touchPoint(event.touches[0])) > 12) touchMoved = true;
+    }, { passive: true });
+
+    container.addEventListener('touchend', (event) => {
+      if (!touchStart || touchMoved || event.changedTouches.length !== 1) {
+        touchStart = null;
+        return;
+      }
+
+      const now = Date.now();
+      const point = touchPoint(event.changedTouches[0]);
+      const wasQuickTap = now - touchStart.time < 350;
+      touchStart = null;
+      if (!wasQuickTap) {
+        lastTap = null;
+        return;
+      }
+
+      if (lastTap && now - lastTap.time < 350 && distance(lastTap.point, point) < 40) {
+        event.preventDefault();
+        event.stopPropagation();
+        map.stop();
+        map.setZoomAround(point, Math.min(map.getZoom() + 1, map.getMaxZoom()));
+        lastTap = null;
+      } else {
+        lastTap = { point, time: now };
+      }
+    }, { passive: false });
+
+    container.addEventListener('touchcancel', () => {
+      touchStart = null;
+      touchMoved = false;
+      lastTap = null;
+    }, { passive: true });
   }
 
   /**
