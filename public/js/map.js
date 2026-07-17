@@ -7,6 +7,7 @@ const MapView = (() => {
   let bidOverviewFeatures = [];
   let selectedBIDIndex = null;
   let touchPreviewBIDIndex = null;
+  let touchSelectionTimer = null;
   let parcelsLayer = null;
   let bufferLayer = null;
   let markersLayer = null;
@@ -159,6 +160,7 @@ const MapView = (() => {
    * Draw every BID's buffered boundary as a lightweight, clickable overview layer.
    */
   function drawBIDOverview(geojson, onSelect) {
+    closeTouchPreview();
     if (bidOverviewLayer) map.removeLayer(bidOverviewLayer);
     bidOverviewFeatures = [];
     selectedBIDIndex = null;
@@ -183,6 +185,10 @@ const MapView = (() => {
         const index = feature.properties.__bidIndex;
         const name = feature.properties.f_all_bi_2 || `BID ${index}`;
         bidOverviewFeatures[index] = layer;
+        layer.on('add', () => {
+          const element = layer.getElement();
+          if (element) element.style.pointerEvents = 'all';
+        });
         layer.bindTooltip(name, {
           className: 'bid-map-tooltip',
           direction: 'top',
@@ -205,14 +211,20 @@ const MapView = (() => {
             L.DomEvent.stopPropagation(event);
             if (index === selectedBIDIndex) return;
 
-            if (isTouchDevice() && touchPreviewBIDIndex !== index) {
+            if (isTouchDevice()) {
               closeTouchPreview();
               touchPreviewBIDIndex = index;
               layer.openTooltip(event.latlng);
+              touchSelectionTimer = window.setTimeout(() => {
+                touchSelectionTimer = null;
+                if (touchPreviewBIDIndex !== index) return;
+                touchPreviewBIDIndex = null;
+                layer.closeTooltip();
+                if (typeof onSelect === 'function') onSelect(index);
+              }, 300);
               return;
             }
 
-            touchPreviewBIDIndex = null;
             layer.closeTooltip();
             if (typeof onSelect === 'function') onSelect(index);
           },
@@ -241,6 +253,10 @@ const MapView = (() => {
   }
 
   function closeTouchPreview() {
+    if (touchSelectionTimer !== null) {
+      window.clearTimeout(touchSelectionTimer);
+      touchSelectionTimer = null;
+    }
     if (touchPreviewBIDIndex === null) return;
     const layer = bidOverviewFeatures[touchPreviewBIDIndex];
     if (layer) layer.closeTooltip();
@@ -250,6 +266,7 @@ const MapView = (() => {
   function overviewStyle(index, selected = false, hovered = false) {
     const dimmed = selectedBIDIndex !== null && !selected;
     return {
+      fill: true,
       fillColor: '#4f9cf7',
       fillOpacity: selected ? 0.28 : hovered ? 0.12 : dimmed ? 0.015 : 0.08,
       color: selected ? '#fbbf24' : hovered ? '#8cc4ff' : '#4f9cf7',
