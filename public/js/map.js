@@ -15,6 +15,7 @@ const MapView = (() => {
   let currentRecords = [];
   let currentTypeColorMap = {};
   let activeCategories = new Set();
+  let desktopHoverPopupMarker = null;
 
   const MARKER_RADIUS = 8;
   const MARKER_STROKE = '#3a3a3a';
@@ -67,6 +68,9 @@ const MapView = (() => {
     });
     map.addLayer(markersLayer);
     installMobileDoubleTapZoom();
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      document.addEventListener('mousemove', handleDesktopPopupPointerMove, { passive: true });
+    }
 
     return map;
   }
@@ -397,7 +401,88 @@ const MapView = (() => {
       autoPan: true
     });
 
+    installDesktopHoverPopup(marker);
+
     markersLayer.addLayer(marker);
+  }
+
+  function installDesktopHoverPopup(marker) {
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+    marker._popupPinned = false;
+    marker._popupHovered = false;
+    marker._popupCloseTimer = null;
+
+    const cancelClose = () => {
+      if (marker._popupCloseTimer !== null) {
+        window.clearTimeout(marker._popupCloseTimer);
+        marker._popupCloseTimer = null;
+      }
+    };
+    const scheduleClose = () => {
+      cancelClose();
+      marker._popupCloseTimer = window.setTimeout(() => {
+        marker._popupCloseTimer = null;
+        if (!marker._popupPinned && !marker._popupHovered) marker.closePopup();
+      }, 220);
+    };
+    marker._scheduleHoverPopupClose = scheduleClose;
+
+    const openHoverPopup = () => {
+      cancelClose();
+      desktopHoverPopupMarker = marker;
+      marker.getPopup().options.autoPan = false;
+      marker.openPopup();
+    };
+    marker.on('mouseover', openHoverPopup);
+    marker.on('mousemove', openHoverPopup);
+    marker.on('mouseout', scheduleClose);
+    marker.on('add', () => {
+      const element = marker.getElement();
+      if (!element || element._bidHoverBound) return;
+      element._bidHoverBound = true;
+      element.addEventListener('mouseenter', openHoverPopup);
+      element.addEventListener('mouseleave', scheduleClose);
+    });
+    marker.on('click', () => {
+      cancelClose();
+      marker._popupPinned = true;
+      marker.getPopup().options.autoPan = true;
+      marker.openPopup();
+    });
+    marker.on('popupopen', () => {
+      const element = marker.getPopup().getElement();
+      if (!element) return;
+      element.onmouseenter = () => {
+        marker._popupHovered = true;
+        cancelClose();
+      };
+      element.onmouseleave = () => {
+        marker._popupHovered = false;
+        scheduleClose();
+      };
+      element.onpointerdown = () => {
+        marker._popupPinned = true;
+        cancelClose();
+      };
+    });
+    marker.on('popupclose', () => {
+      cancelClose();
+      marker._popupPinned = false;
+      marker._popupHovered = false;
+      if (desktopHoverPopupMarker === marker) desktopHoverPopupMarker = null;
+      marker.getPopup().options.autoPan = true;
+    });
+  }
+
+  function handleDesktopPopupPointerMove(event) {
+    const marker = desktopHoverPopupMarker;
+    if (!marker || marker._popupPinned || marker._popupHovered) return;
+    const markerElement = marker.getElement();
+    const popupElement = marker.getPopup().getElement();
+    if (markerElement && markerElement.contains(event.target)) return;
+    if (popupElement && popupElement.contains(event.target)) return;
+    if (marker._scheduleHoverPopupClose) marker._scheduleHoverPopupClose();
   }
 
   /**
