@@ -211,12 +211,13 @@ const MapView = (() => {
   }
 
   function overviewStyle(index, selected = false, hovered = false) {
+    const dimmed = selectedBIDIndex !== null && !selected;
     return {
       fillColor: '#4f9cf7',
-      fillOpacity: selected ? 0.28 : hovered ? 0.2 : 0.08,
+      fillOpacity: selected ? 0.28 : hovered ? 0.12 : dimmed ? 0.015 : 0.08,
       color: selected ? '#fbbf24' : hovered ? '#8cc4ff' : '#4f9cf7',
-      opacity: selected ? 1 : 0.92,
-      weight: selected ? 2.5 : hovered ? 2 : 1.2,
+      opacity: selected ? 1 : hovered ? 0.78 : dimmed ? 0.25 : 0.92,
+      weight: selected ? 2.5 : hovered ? 1.8 : dimmed ? 1 : 1.2,
       className: 'bid-overview-boundary'
     };
   }
@@ -227,12 +228,12 @@ const MapView = (() => {
       const layer = bidOverviewFeatures[i];
       if (!layer) continue;
       layer.closeTooltip();
+      if (!bidOverviewLayer.hasLayer(layer)) bidOverviewLayer.addLayer(layer);
       if (i === index) {
-        if (!bidOverviewLayer.hasLayer(layer)) bidOverviewLayer.addLayer(layer);
         layer.setStyle(overviewStyle(i, true));
         layer.bringToFront();
-      } else if (bidOverviewLayer.hasLayer(layer)) {
-        bidOverviewLayer.removeLayer(layer);
+      } else {
+        layer.setStyle(overviewStyle(i));
       }
     }
   }
