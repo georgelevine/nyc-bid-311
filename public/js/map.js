@@ -9,6 +9,7 @@ const MapView = (() => {
   let touchPreviewBIDIndex = null;
   let parcelsLayer = null;
   let bufferLayer = null;
+  let selectedBIDBounds = null;
   let markersLayer = null;
   let heatLayer = null;
   let currentRecords = [];
@@ -310,8 +311,32 @@ const MapView = (() => {
       }
     }).addTo(map);
 
-    const bounds = Polygons.bboxToLatLngBounds(processedPoly.bbox);
-    map.fitBounds(bounds, { padding: [30, 30] });
+    selectedBIDBounds = Polygons.bboxToLatLngBounds(processedPoly.bbox);
+    fitSelectedBID();
+  }
+
+  function fitSelectedBID() {
+    if (!selectedBIDBounds || !selectedBIDBounds.isValid()) return;
+
+    const mobile = map.getContainer().clientWidth <= 768;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarState = sidebar ? sidebar.dataset.state : null;
+    if (mobile && sidebarState === 'full') return;
+
+    let coveredHeight = 0;
+    if (mobile && sidebar && sidebarState !== 'closed') {
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const sidebarRect = sidebar.getBoundingClientRect();
+      coveredHeight = Math.max(0, mapRect.bottom - Math.max(mapRect.top, sidebarRect.top));
+    }
+
+    const edge = mobile ? 20 : 30;
+    map.fitBounds(selectedBIDBounds, {
+      paddingTopLeft: [edge, edge],
+      paddingBottomRight: [edge, edge + coveredHeight],
+      maxZoom: mobile ? 17 : 18,
+      animate: false
+    });
   }
 
   /**
@@ -581,6 +606,6 @@ const MapView = (() => {
   return {
     init, drawBIDOverview, drawBIDPolygon, plotRecords, buildCategoryLegend, updateHeatmap,
     toggleHeatmap, toggleParcels, toggleBuffer, clearMarkers, clearPolygonLayers,
-    getMap, TYPE_COLORS
+    fitSelectedBID, getMap, TYPE_COLORS
   };
 })();

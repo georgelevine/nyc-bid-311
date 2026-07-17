@@ -30,7 +30,10 @@ const Filters = (() => {
     // Invalidate Leaflet size when sidebar width changes on desktop
     setTimeout(() => {
       if (window.MapView && MapView.getMap) {
-        try { MapView.getMap().invalidateSize(); } catch (e) {}
+        try {
+          MapView.getMap().invalidateSize();
+          if (MapView.fitSelectedBID) MapView.fitSelectedBID();
+        } catch (e) {}
       }
     }, 260);
   }
