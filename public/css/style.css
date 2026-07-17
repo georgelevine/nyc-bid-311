@@ -28,6 +28,9 @@
 
 html, body {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-dark);
   color: var(--text-primary);
@@ -102,6 +105,9 @@ button { font-family: inherit; }
 /* ===== Layout ===== */
 #app-container {
   display: flex;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   height: calc(100vh - var(--header-height));
   height: calc(100dvh - var(--header-height));
   position: relative;
@@ -904,7 +910,8 @@ select option { background: var(--bg-input); color: var(--text-primary); }
     right: 0;
     bottom: 0;
     top: auto;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     min-width: 0;
     height: auto;
     max-height: 92dvh;
@@ -936,6 +943,8 @@ select option { background: var(--bg-input); color: var(--text-primary); }
     -webkit-tap-highlight-color: transparent;
     flex-direction: column;
     position: relative;
+    min-width: 0;
+    max-width: 100%;
   }
   .drawer-handle-bar {
     width: 42px;
@@ -949,12 +958,18 @@ select option { background: var(--bg-input); color: var(--text-primary); }
     align-items: center;
     gap: 2px;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     text-align: center;
   }
   #drawer-handle-title {
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
+    max-width: calc(100vw - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   #drawer-handle-subtitle {
     font-size: 11px;
@@ -969,6 +984,10 @@ select option { background: var(--bg-input); color: var(--text-primary); }
     padding: 8px 16px 24px;
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
   }
+
+  /* iOS zooms the whole page when a focused input is smaller than 16px. */
+  select,
+  input[type="text"] { font-size: 16px; }
 
   #sidebar[data-state="collapsed"] #sidebar-scroll {
     max-height: 0;
