@@ -7,6 +7,7 @@ const Filters = (() => {
   let selectedBID = null;
   let datePicker = null;
   let activeQuickRange = '30';
+  let drawerMapSyncToken = 0;
 
   function init(geojson) {
     bidData = geojson;
@@ -30,15 +31,29 @@ const Filters = (() => {
     sidebar.dataset.state = state;
     sidebar.style.removeProperty('height');
     updateDrawerControls(state);
-    // Invalidate Leaflet size when sidebar width changes on desktop
-    setTimeout(() => {
-      if (window.MapView && MapView.getMap) {
-        try {
-          MapView.getMap().invalidateSize();
-          if (MapView.fitSelectedBID) MapView.fitSelectedBID();
-        } catch (e) {}
+    syncMapToSidebar(isMobile() ? 280 : 240);
+  }
+
+  function syncMapToSidebar(duration = 0) {
+    const token = ++drawerMapSyncToken;
+    const started = performance.now();
+    let lastSync = -Infinity;
+
+    const sync = now => {
+      if (token !== drawerMapSyncToken) return;
+      if (now - lastSync >= 48 || now - started >= duration) {
+        lastSync = now;
+        if (typeof MapView !== 'undefined' && MapView.getMap) {
+          try {
+            MapView.getMap().invalidateSize({ pan: false, debounceMoveend: true });
+            if (MapView.fitSelectedBID) MapView.fitSelectedBID();
+          } catch (e) {}
+        }
       }
-    }, 260);
+      if (now - started < duration) requestAnimationFrame(sync);
+    };
+
+    requestAnimationFrame(sync);
   }
 
   function updateDrawerControls(state) {
@@ -80,6 +95,7 @@ const Filters = (() => {
       if (!isMobile() || event.button > 0 || event.target.closest('#drawer-minimize')) return;
       drag = {
         pointerId: event.pointerId,
+        startState: sidebar.dataset.state || 'half',
         startY: event.clientY,
         startHeight: sidebar.getBoundingClientRect().height,
         currentHeight: sidebar.getBoundingClientRect().height,
@@ -106,8 +122,12 @@ const Filters = (() => {
       drag.lastY = event.clientY;
       drag.lastTime = now;
       drag.currentHeight = nextHeight;
-      sidebar.classList.add('is-dragging');
+      if (!sidebar.classList.contains('is-dragging')) {
+        sidebar.classList.add('is-dragging');
+        sidebar.dataset.state = 'dragging';
+      }
       sidebar.style.height = `${nextHeight}px`;
+      syncMapToSidebar();
     };
 
     const finishDrag = event => {
@@ -119,21 +139,22 @@ const Filters = (() => {
         ? nearestDrawerState(drag.currentHeight, drag.velocityY)
         : null;
       drag = null;
-      sidebar.classList.remove('is-dragging');
 
       if (completedDrag) {
         event.preventDefault();
         suppressClick = true;
         setTimeout(() => { suppressClick = false; }, 350);
+        sidebar.classList.remove('is-dragging');
         setSidebarState(targetState);
       }
     };
 
     const cancelDrag = event => {
       if (!drag || event.pointerId !== drag.pointerId) return;
+      const startState = drag.startState;
       drag = null;
       sidebar.classList.remove('is-dragging');
-      setSidebarState(sidebar.dataset.state || 'half');
+      setSidebarState(startState);
     };
 
     // Listen at the window so a fast swipe remains tracked after leaving the grip.

@@ -1181,6 +1181,13 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
     padding-top: 0;
     padding-bottom: 0;
   }
+  #sidebar.is-dragging #sidebar-scroll {
+    max-height: none;
+    padding-top: 8px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
+    pointer-events: none;
+    overflow: hidden;
+  }
 
   /* Hide desktop sidebar toggle on mobile — drawer has its own handle */
   .icon-btn { display: inline-flex; }
@@ -1219,9 +1226,11 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
   .leaflet-bottom.leaflet-right { margin-bottom: 78px; }
   /* Hide zoom when drawer is half or full (user isn't looking at the map) */
   body:has(#sidebar[data-state="half"]) .leaflet-control-zoom,
-  body:has(#sidebar[data-state="full"]) .leaflet-control-zoom { display: none; }
+  body:has(#sidebar[data-state="full"]) .leaflet-control-zoom,
+  body:has(#sidebar.is-dragging) .leaflet-control-zoom { display: none; }
   body:has(#sidebar[data-state="half"]) .leaflet-control-attribution,
-  body:has(#sidebar[data-state="full"]) .leaflet-control-attribution { display: none; }
+  body:has(#sidebar[data-state="full"]) .leaflet-control-attribution,
+  body:has(#sidebar.is-dragging) .leaflet-control-attribution { display: none; }
   /* Hide zoom when mobile legend is open */
   body:has(#map-legend[data-state="open"]) .leaflet-control-zoom { display: none; }
 

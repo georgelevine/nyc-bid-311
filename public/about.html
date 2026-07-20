@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1a1d23">
   <title>About &amp; Methodology — NYC BID 311 Explorer</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=40" />
   <style>
     /* About page specific styles */
     body { background: var(--bg-dark); min-height: 100vh; }
@@ -21,6 +21,9 @@
       .about-container h1 { font-size: 22px !important; }
       .about-subtitle { font-size: 14px !important; margin-bottom: 28px !important; }
       .about-container h2 { font-size: 17px !important; margin-top: 32px !important; }
+      .about-header-back { font-size: 20px; }
+      .about-header-back > span[aria-hidden="true"] { display: inline; }
+      .about-header-back-label { display: none !important; }
     }
     .about-container a.back-link,
     .about-container a.btn { min-height: 44px; display: inline-flex; align-items: center; }
@@ -327,7 +330,9 @@
       <span class="header-subtitle">About &amp; Methodology</span>
     </div>
     <div class="header-right">
-      <a href="index.html" class="header-link">&larr; Back to Map</a>
+      <a href="index.html" class="header-link about-header-back" aria-label="Back to map" title="Back to map">
+        <span aria-hidden="true">&larr;</span><span class="about-header-back-label">Back to Map</span>
+      </a>
     </div>
   </header>
 
@@ -369,7 +374,7 @@
     <!-- ============================================ -->
     <h2>2. Data Sources</h2>
 
-    <h3>NYC Open Data — BID Boundaries</h3>
+    <h3>NYC Open Data — BID Boundaries (Geography Only)</h3>
     <p>
       NYC Open Data supplies the parcel polygons used to define each Business Improvement District.
       It is used for geography only; the 311 requests displayed by this tool come from the live Portal.
@@ -390,25 +395,20 @@
       <li>CORS: <span class="stat-highlight" style="color: var(--red); border-color: rgba(248,113,113,0.2); background: rgba(248,113,113,0.1);">Locked</span> to <code>www1.nyc.gov</code> only</li>
       <li>Record limit: <strong>100 records maximum, no pagination</strong></li>
       <li>Response: Returns HTML page wrapping JSON data</li>
+      <li>Dates: The server normalizes the feed's unzoned UTC timestamps and displays them in New York time</li>
     </ul>
 
-    <h3>Field Comparison</h3>
+    <h3>Available 311 Portal Fields</h3>
     <table class="data-table">
-      <tr><th>Field</th><th>Open Data</th><th>Portal</th></tr>
-      <tr><td>Unique Identifier</td><td><code>unique_key</code> (e.g., 64365278)</td><td><code>srnumber</code> (e.g., 311-22260438)</td></tr>
-      <tr><td>Complaint Type</td><td class="check">complaint_type</td><td class="check">data.problem</td></tr>
-      <tr><td>Descriptor/Details</td><td class="check">descriptor</td><td class="cross">Detail page only</td></tr>
-      <tr><td>Status</td><td class="check">status</td><td class="check">data.status</td></tr>
-      <tr><td>Agency</td><td class="check">agency, agency_name</td><td class="cross">Not available</td></tr>
-      <tr><td>Created Date</td><td class="check">created_date (UTC)</td><td class="check">submitteddate (UTC, timezone omitted)</td></tr>
-      <tr><td>Closed Date</td><td class="check">closed_date</td><td class="cross">Detail page only</td></tr>
-      <tr><td>Resolution</td><td class="check">resolution_description</td><td class="cross">Detail page only</td></tr>
-      <tr><td>Coordinates</td><td class="check">lat/lng + state plane</td><td class="check">lat/lng</td></tr>
-      <tr><td>Address</td><td class="check">Structured fields</td><td class="check">Combined string</td></tr>
-      <tr><td>BBL (Parcel ID)</td><td class="check">bbl</td><td class="cross">Not available</td></tr>
-      <tr><td>Community Board</td><td class="check">community_board</td><td class="cross">Not available</td></tr>
-      <tr><td>Channel</td><td class="check">open_data_channel_type</td><td class="cross">Not available</td></tr>
-      <tr><td>Portal Detail Link</td><td class="cross">Not available</td><td class="check">CRM GUID for /sr-details/</td></tr>
+      <tr><th>Field</th><th>Map Feed</th><th>Case Detail Page</th></tr>
+      <tr><td>Service-request number</td><td class="check">Available</td><td class="check">Available</td></tr>
+      <tr><td>Request type and status</td><td class="check">Available</td><td class="check">Available</td></tr>
+      <tr><td>Address and coordinates</td><td class="check">Available</td><td>Address available</td></tr>
+      <tr><td>Reported date</td><td class="check">Available</td><td class="check">Available</td></tr>
+      <tr><td>Problem and additional details</td><td class="cross">Not included</td><td class="check">Available when provided</td></tr>
+      <tr><td>Portal update and closed dates</td><td class="cross">Not included</td><td class="check">Available when provided</td></tr>
+      <tr><td>Expected next update</td><td class="cross">Not included</td><td class="check">Available when provided</td></tr>
+      <tr><td>Agency, channel, and resolution</td><td class="cross">Not included</td><td class="cross">Not reliably available</td></tr>
     </table>
 
     <!-- ============================================ -->
@@ -550,76 +550,27 @@
     </table>
 
     <!-- ============================================ -->
-    <h2>4. Prior Source Comparison Research</h2>
-    <div class="callout">
-      This research informed development, but the current map does not combine or match 311 sources.
-    </div>
-    <p>
-      The two data sources use <strong>completely different identifier systems</strong> with no crosswalk:
-    </p>
-    <ul>
-      <li>Open Data: <code>unique_key</code> — numeric, e.g., <strong>64365278</strong> (64 million range for 2025 records)</li>
-      <li>Portal: <code>srnumber</code> — prefixed, e.g., <strong>311-22260438</strong> (22 million range for the same period)</li>
-    </ul>
-    <p>
-      Initial hypothesis: strip "311-" from the SR number to get the unique_key. <strong>This is wrong.</strong>
-      The numbers are in entirely different ranges and represent independent ID systems.
-    </p>
-
-    <h3>Composite Key Matching</h3>
-    <p>
-      Through systematic testing of 200+ records across Manhattan and Brooklyn, we developed a composite
-      key matching strategy:
-    </p>
-    <ol>
-      <li><strong>Timestamp alignment:</strong> The two sources store timestamps with a consistent offset equal
-        to the Eastern Time UTC offset (4-5 hours depending on DST). Empirically verified: subtracting the
-        ET offset from the portal's numeric timestamp produces the Open Data timestamp exactly. We apply this
-        correction and allow a <span class="stat-highlight">&pm;3 minute window</span> to handle timestamp
-        rounding in certain complaint types.</li>
-      <li><strong>Complaint type matching:</strong> Case-insensitive comparison. Portal may use "Heat/Hot Water"
-        while Open Data uses "HEAT/HOT WATER".</li>
-      <li><strong>Address verification:</strong> Extract street name (remove house number and borough suffix)
-        and check for substring match.</li>
-    </ol>
-
-    <h3>Verified Match Rates</h3>
-    <table class="data-table">
-      <tr><th>Test</th><th>Method</th><th>Match Rate</th></tr>
-      <tr><td>Manhattan, exact timestamp</td><td>Timestamp + type + address</td><td>80/100 (80%)</td></tr>
-      <tr><td>Manhattan, 3-min window</td><td>Fuzzy timestamp + case-insensitive</td><td>91/100 (91%)</td></tr>
-      <tr><td>Brooklyn, 3-min window</td><td>Fuzzy timestamp + case-insensitive</td><td>91/100 (91%)</td></tr>
-      <tr><td>Reverse (OD &rarr; Portal)</td><td>Same composite key</td><td>96/102 (94%)</td></tr>
-    </table>
-
-    <h3>Why ~9% Don't Match</h3>
-    <ul>
-      <li><strong>~7-8% genuinely absent from Open Data</strong> — likely NYPD-sensitive or privacy-withheld records</li>
-      <li><strong>Timestamp rounding:</strong> Generic "Noise", "Food Poisoning", "Street Light Condition" have seconds zeroed out in Open Data</li>
-      <li><strong>Case mismatches</strong> in complaint types (e.g., title case vs ALL CAPS)</li>
-      <li><strong>Intersection records</strong> with <code>incident_address = NULL</code> in Open Data</li>
-    </ul>
-
-    <!-- ============================================ -->
-    <h2>5. Why This Tool Uses Portal Data</h2>
+    <h2>4. Portal-Only 311 Data</h2>
     <div class="callout success">
-      Every displayed 311 request comes directly from the live NYC 311 Portal.
+      Every displayed 311 request comes directly from the live NYC 311 Portal. The NYC Open Data
+      311 dataset is not queried, merged, or used to supplement counts.
     </div>
     <ul>
       <li><strong>Near-real-time results</strong> from the same source residents use to check requests</li>
       <li><strong>Portal service-request numbers</strong> and direct links to request detail pages</li>
-      <li><strong>Portal-native statuses</strong>, request types, submitted dates, addresses, and coordinates</li>
-      <li><strong>No cross-source merging</strong> or duplicate reconciliation in the displayed dataset</li>
+      <li><strong>Portal-native statuses</strong>, request types, reported dates, addresses, and coordinates</li>
+      <li><strong>One source of truth</strong> for map pins, counts, filters, and summaries</li>
     </ul>
     <p>
       The Portal limits each response to 100 records and does not paginate. The server therefore
-      queries one day at a time and subdivides capped days into smaller map areas. Portal pin data
-      does not include agency, submission channel, resolution text, or closed date, so the tool does
-      not infer or supplement those fields.
+      queries one day at a time and subdivides capped days into smaller map areas. When a case popup
+      opens, the server fetches that case's Portal detail page for problem details, update timing,
+      closure timing, and the expected next update when those values are available. The tool does not
+      infer unavailable agency, channel, or resolution fields from another dataset.
     </p>
 
     <!-- ============================================ -->
-    <h2>6. The BID Polygon Challenge</h2>
+    <h2>5. The BID Polygon Challenge</h2>
     <p>
       The BID boundary dataset from NYC Open Data (<code>data.cityofnewyork.us/resource/7jdm-inj8</code>)
       does not contain district boundaries. Instead, it contains <strong>tax lot parcel polygons</strong> —
@@ -667,7 +618,7 @@
     </p>
 
     <!-- ============================================ -->
-    <h2>7. Coordinate Handling</h2>
+    <h2>6. Coordinate Handling</h2>
     <p>
       Map pins use the coordinates returned by the 311 Portal. After the server fetches pins within
       the selected BID's bounding box, the browser applies a point-in-polygon test against the buffered
@@ -676,7 +627,7 @@
     </p>
 
     <!-- ============================================ -->
-    <h2>8. How the Map Works</h2>
+    <h2>7. How the Map Works</h2>
     <h3>Data Flow</h3>
     <ol>
       <li>User selects a BID from the dropdown</li>
@@ -690,14 +641,14 @@
 
     <h3>Available Portal Fields</h3>
     <table class="data-table">
-      <tr><th>Available</th><th>Not Included in Pin Data</th></tr>
-      <tr><td>Request type, status, submitted date</td><td>Agency and submission channel</td></tr>
-      <tr><td>Address and coordinates</td><td>Resolution text and closed date</td></tr>
-      <tr><td>Service-request number and detail link</td><td>BBL, ZIP, and community board</td></tr>
+      <tr><th>Portal Map Feed</th><th>Portal Case Detail</th><th>Not Reliably Available</th></tr>
+      <tr><td>Request type, status, and reported date</td><td>Problem and additional details</td><td>Agency and submission channel</td></tr>
+      <tr><td>Address and coordinates</td><td>Portal update and closure timing</td><td>Resolution narrative</td></tr>
+      <tr><td>Service-request number and detail link</td><td>Expected next update</td><td>Structured BBL and community board</td></tr>
     </table>
 
     <!-- ============================================ -->
-    <h2>9. Future Expansion</h2>
+    <h2>8. Future Expansion</h2>
     <p>
       This tool's architecture — BID polygons + geospatial data overlay — can be extended to incorporate
       other NYC datasets for a comprehensive district dashboard:
@@ -736,9 +687,9 @@
           Seasonal analysis, year-over-year comparisons, and anomaly detection.</p>
       </div>
       <div class="expansion-card">
-        <h4>Real-Time Streaming</h4>
-        <p>Integration with the Socrata streaming API for near-real-time complaint monitoring.
-          Push notifications when new complaints are filed within a BID.</p>
+        <h4>Portal Alerts</h4>
+        <p>Scheduled checks of the live 311 Portal with notifications when new requests appear
+          inside a selected BID.</p>
       </div>
       <div class="expansion-card">
         <h4>Exportable Reports</h4>
@@ -748,7 +699,7 @@
     </div>
 
     <!-- ============================================ -->
-    <h2>10. Technical Stack</h2>
+    <h2>9. Technical Stack</h2>
     <table class="data-table">
       <tr><th>Component</th><th>Technology</th><th>Why</th></tr>
       <tr><td>Server</td><td>Node.js + Express</td><td>Proxies portal API (CORS bypass), serves static files, easy deployment</td></tr>
@@ -762,7 +713,7 @@
     </table>
 
     <p style="margin-top: 40px; color: var(--text-muted); font-size: 12px; text-align: center;">
-      311 requests sourced from the NYC 311 Portal &middot; BID boundaries sourced from NYC Open Data
+      311 requests: live NYC 311 Portal only &middot; BID geography: NYC Open Data boundaries
     </p>
   </div>
 
