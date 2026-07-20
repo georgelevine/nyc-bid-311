@@ -147,14 +147,6 @@
       color: var(--accent);
     }
 
-    /* Buffer visualization */
-    #buffer-viz {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      margin: 20px 0;
-    }
-
     /* Spatial split demo */
     #split-demo-container {
       background: var(--bg-card);
@@ -570,7 +562,7 @@
     </p>
 
     <!-- ============================================ -->
-    <h2>5. The BID Polygon Challenge</h2>
+    <h2>5. Official BID Boundaries</h2>
     <p>
       The BID boundary dataset from NYC Open Data (<code>data.cityofnewyork.us/resource/7jdm-inj8</code>)
       does not contain district boundaries. Instead, it contains <strong>tax lot parcel polygons</strong> —
@@ -593,40 +585,35 @@
       encampments) which are geocoded to street centerlines.
     </p>
 
-    <h3>The Solution: Internal Gap Closing</h3>
+    <h3>The Solution: Two Complementary Sources</h3>
     <p>
-      We use a <strong>30-meter geometric closing pass</strong> in Turf.js: parcels are temporarily expanded
-      so internal street gaps connect, merged, and then contracted by the same 30 meters. The original
-      parcels are added back afterward. The final exterior has a <strong>zero-meter offset</strong>, so the
-      district edge remains against its outermost parcels instead of expanding toward another BID.
-      Enclosed interior rings are filled as part of the district so they do not appear as unexplained
-      holes in the map or disagree with the area used for request filtering.
+      The application uses NYC's
+      <a href="https://services6.arcgis.com/yG5s3afENB5iO9fj/arcgis/rest/services/BusinessImprovementDistrict_view/FeatureServer/0" target="_blank" rel="noopener"><strong>Business Improvement District ArcGIS feature layer</strong></a>
+      as the authoritative district boundary. These continuous polygons include streets inside each
+      BID and follow the official outer edge. The Open Data parcel dataset remains useful for parcel
+      detail, district websites, founding years, and display names.
     </p>
 
-    <canvas id="buffer-viz" width="860" height="350"></canvas>
-
     <table class="data-table">
-      <tr><th>Stage</th><th>Geometry</th><th>Purpose</th></tr>
-      <tr><td>1</td><td>Original tax lots</td><td>Preserve the authoritative outside edge</td></tr>
-      <tr><td>2</td><td>Temporary +30m expansion</td><td>Bridge streets between parcels in the same BID</td></tr>
-      <tr><td>3</td><td>Merge connected shapes</td><td>Create continuous internal coverage</td></tr>
-      <tr><td>4</td><td>Contract by 30m</td><td>Return the outside edge to zero offset</td></tr>
-      <tr><td>5</td><td>Restore original lots</td><td>Protect corners and small exterior parcels</td></tr>
+      <tr><th>Source</th><th>Geometry</th><th>Purpose</th></tr>
+      <tr><td>NYC ArcGIS</td><td>Official district polygons</td><td>Selection, request filtering, map framing, and the yellow boundary</td></tr>
+      <tr><td>NYC Open Data</td><td>Tax lot parcel polygons</td><td>Blue parcel detail and BID descriptive metadata</td></tr>
+      <tr><td>Fallback</td><td>Gap-closed parcel geometry</td><td>Used only if the ArcGIS boundary service is temporarily unavailable</td></tr>
     </table>
 
     <p>
       On the map, you can see both layers: the <strong style="color: #4f9cf7;">blue dashed outlines</strong>
       are the raw tax lot parcels, and the <strong style="color: #fbbf24;">yellow solid outline</strong>
-      is the gap-filled boundary used for filtering. Its outer edge has no buffer.
+      is the official district boundary used for filtering. No artificial exterior buffer is added.
     </p>
 
     <!-- ============================================ -->
     <h2>6. Coordinate Handling</h2>
     <p>
       Map pins use the coordinates returned by the 311 Portal. After the server fetches pins within
-      the selected BID's bounding box, the browser applies a point-in-polygon test against the gap-filled
+      the selected BID's bounding box, the browser applies a point-in-polygon test against the official
       BID boundary. This removes nearby requests that fall inside the rectangular query area but outside
-      the district. If two processed boundaries genuinely meet, a point is assigned only to
+      the district. If two boundaries genuinely overlap, a point is assigned only to
       the BID whose original tax parcels are closest, preventing cross-BID double counting.
     </p>
 
@@ -635,11 +622,11 @@
     <h3>Data Flow</h3>
     <ol>
       <li>User selects a BID from the dropdown</li>
-      <li>Internal parcel gaps are closed with an equal expand-and-contract operation, leaving no exterior offset</li>
-      <li>A bounding box (with 50m query padding) is computed around the gap-filled boundary</li>
+      <li>The corresponding official ArcGIS district polygon is selected</li>
+      <li>A bounding box (with 50m query padding) is computed around the official boundary</li>
       <li>The server proxy queries the 311 Portal by date and bounding box, splitting the range into daily windows</li>
       <li>Days that reach the Portal's 100-record cap are queried again in a 2x2 spatial grid</li>
-      <li>Returned points are filtered client-side against the gap-filled boundary and assigned to the nearest original BID parcels if boundaries meet</li>
+      <li>Returned points are filtered client-side against the official boundary and assigned to the nearest original BID parcels if boundaries overlap</li>
       <li>Pins are plotted and color-coded by complaint type</li>
     </ol>
 
@@ -708,142 +695,20 @@
       <tr><th>Component</th><th>Technology</th><th>Why</th></tr>
       <tr><td>Server</td><td>Node.js + Express</td><td>Proxies portal API (CORS bypass), serves static files, easy deployment</td></tr>
       <tr><td>Map</td><td>Leaflet + MarkerCluster</td><td>Free, lightweight, handles thousands of pins with clustering</td></tr>
-      <tr><td>Spatial Processing</td><td>Turf.js</td><td>Client-side polygon buffering, point-in-polygon, bounding box computation</td></tr>
+      <tr><td>Spatial Processing</td><td>Turf.js</td><td>Spatial source matching, point-in-polygon filtering, and bounding box computation</td></tr>
       <tr><td>Charts</td><td>Chart.js</td><td>Lightweight charting with no build step</td></tr>
       <tr><td>Date Picker</td><td>Flatpickr</td><td>Tiny, range-mode support, dark theme</td></tr>
       <tr><td>Heatmap</td><td>Leaflet.heat</td><td>Density visualization layer</td></tr>
       <tr><td>311 Request API</td><td>NYC 311 Portal (proxied)</td><td>Live request pins, statuses, and detail links</td></tr>
-      <tr><td>Boundary API</td><td>NYC Open Data</td><td>BID parcel polygons and district metadata</td></tr>
+      <tr><td>Boundary APIs</td><td>NYC ArcGIS + NYC Open Data</td><td>Official BID boundaries plus parcel geometry and district metadata</td></tr>
     </table>
 
     <p style="margin-top: 40px; color: var(--text-muted); font-size: 12px; text-align: center;">
-      311 requests: live NYC 311 Portal only &middot; BID geography: NYC Open Data boundaries
+      311 requests: live NYC 311 Portal only &middot; BID geography: NYC ArcGIS and NYC Open Data
     </p>
   </div>
 
   <script>
-    // Draw buffer visualization on canvas
-    document.addEventListener('DOMContentLoaded', () => {
-      const canvas = document.getElementById('buffer-viz');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const W = canvas.width;
-      const H = canvas.height;
-
-      // Background
-      ctx.fillStyle = '#2a2f38';
-      ctx.fillRect(0, 0, W, H);
-
-      // Title
-      ctx.fillStyle = '#9aa0a6';
-      ctx.font = '13px -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-
-      // LEFT SIDE: Raw parcels
-      ctx.fillText('Raw Tax Lot Parcels', W * 0.25, 28);
-
-      const parcels = [
-        { x: 50, y: 50, w: 120, h: 100 },
-        { x: 200, y: 50, w: 130, h: 100 },
-        { x: 50, y: 185, w: 120, h: 110 },
-        { x: 200, y: 185, w: 130, h: 110 },
-      ];
-
-      // Draw parcels
-      for (const p of parcels) {
-        ctx.fillStyle = 'rgba(79, 156, 247, 0.15)';
-        ctx.fillRect(p.x, p.y, p.w, p.h);
-        ctx.strokeStyle = '#4f9cf7';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(p.x, p.y, p.w, p.h);
-      }
-      ctx.setLineDash([]);
-
-      // Label streets
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '10px -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('STREET', 190, 165);
-      ctx.save();
-      ctx.translate(185, 175);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText('AVE', 0, -3);
-      ctx.restore();
-
-      // X markers for missed complaints
-      const missed = [
-        { x: 110, y: 162 }, { x: 265, y: 162 },
-        { x: 185, y: 100 }, { x: 185, y: 240 },
-      ];
-      ctx.fillStyle = '#f87171';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.textAlign = 'center';
-      for (const m of missed) {
-        ctx.fillText('X', m.x, m.y);
-      }
-
-      ctx.fillStyle = '#f87171';
-      ctx.font = '10px -apple-system, sans-serif';
-      ctx.fillText('311 requests in streets = MISSED', W * 0.25, H - 20);
-
-      // Arrow
-      ctx.fillStyle = '#9aa0a6';
-      ctx.font = '28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('\u2192', W * 0.5, H * 0.5);
-
-      // RIGHT SIDE: Internal gaps filled, exterior restored
-      ctx.fillStyle = '#9aa0a6';
-      ctx.font = '13px -apple-system, sans-serif';
-      ctx.fillText('Internal Gaps Filled — 0m Outer Offset', W * 0.75, 28);
-
-      const offsetX = W * 0.5 + 30;
-
-      // Draw a gap-filled outline aligned to the outside parcel edges
-      ctx.beginPath();
-      ctx.roundRect(offsetX + 50, 50, 280, 245, 4);
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
-      ctx.fill();
-      ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw parcels inside
-      const rightParcels = [
-        { x: offsetX + 50, y: 50, w: 120, h: 100 },
-        { x: offsetX + 200, y: 50, w: 130, h: 100 },
-        { x: offsetX + 50, y: 185, w: 120, h: 110 },
-        { x: offsetX + 200, y: 185, w: 130, h: 110 },
-      ];
-
-      for (const p of rightParcels) {
-        ctx.fillStyle = 'rgba(79, 156, 247, 0.1)';
-        ctx.fillRect(p.x, p.y, p.w, p.h);
-        ctx.strokeStyle = 'rgba(79, 156, 247, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(p.x, p.y, p.w, p.h);
-      }
-      ctx.setLineDash([]);
-
-      // Check marks for captured complaints
-      const captured = [
-        { x: offsetX + 110, y: 165 }, { x: offsetX + 265, y: 165 },
-        { x: offsetX + 185, y: 100 }, { x: offsetX + 185, y: 245 },
-      ];
-      ctx.fillStyle = '#34d399';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.textAlign = 'center';
-      for (const c of captured) {
-        ctx.fillText('\u2713', c.x, c.y);
-      }
-
-      ctx.fillStyle = '#34d399';
-      ctx.font = '10px -apple-system, sans-serif';
-      ctx.fillText('311 requests in streets = CAPTURED', W * 0.75, H - 20);
-    });
-
     // ============================================================
     // Interactive Spatial Splitting Demo
     // ============================================================

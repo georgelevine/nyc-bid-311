@@ -189,7 +189,7 @@ const MapView = (() => {
   }
 
   /**
-   * Draw every BID's gap-filled boundary as a lightweight, clickable overview layer.
+   * Draw every BID boundary as a lightweight, clickable overview layer.
    */
   function drawBIDOverview(geojson, onSelect) {
     closeTouchPreview();

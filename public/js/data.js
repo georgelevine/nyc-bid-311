@@ -2,10 +2,110 @@
  * data.js — BID boundaries and live NYC 311 Portal data
  */
 const Data = (() => {
-  const BID_URL = 'https://data.cityofnewyork.us/resource/7jdm-inj8.geojson?$limit=100';
-  const BID_CACHE_KEY = 'nyc_bid_geojson';
+  const BID_PARCELS_URL = 'https://data.cityofnewyork.us/resource/7jdm-inj8.geojson?$limit=100';
+  const BID_BOUNDARIES_URL = 'https://services6.arcgis.com/yG5s3afENB5iO9fj/arcgis/rest/services/BusinessImprovementDistrict_view/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson';
+  const BID_CACHE_KEY = 'nyc_bid_geojson_arcgis_v1';
   const BID_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
   const portalDetailCache = new Map();
+
+  const BOROUGH_NAMES = {
+    1: 'Manhattan',
+    2: 'Bronx',
+    3: 'Brooklyn',
+    4: 'Queens',
+    5: 'Staten Island'
+  };
+
+  function polygonParts(feature) {
+    if (!feature || !feature.geometry) return [];
+    if (feature.geometry.type === 'Polygon') return [feature.geometry.coordinates];
+    if (feature.geometry.type === 'MultiPolygon') return feature.geometry.coordinates;
+    return [];
+  }
+
+  function parcelSamplePoints(feature) {
+    return polygonParts(feature).map(coords => {
+      try {
+        return turf.pointOnFeature(turf.polygon(coords));
+      } catch (e) {
+        const ring = coords[0] || [];
+        const count = Math.max(1, ring.length - 1);
+        const sum = ring.slice(0, count).reduce((acc, point) => [
+          acc[0] + point[0],
+          acc[1] + point[1]
+        ], [0, 0]);
+        return turf.point([sum[0] / count, sum[1] / count]);
+      }
+    });
+  }
+
+  function bboxesOverlap(a, b) {
+    return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+  }
+
+  function cleanBoundaryName(name) {
+    return String(name || 'Business Improvement District')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+BID$/i, '')
+      .trim();
+  }
+
+  /**
+   * Join Open Data parcel detail to the official ArcGIS district polygons.
+   * Spatial matching avoids brittle name aliases (for example NoHo BID/NoHo NY).
+   */
+  function mergeBIDSources(parcelData, boundaryData) {
+    const boundaries = (boundaryData.features || []).map((feature, index) => ({
+      feature,
+      index,
+      bbox: turf.bbox(feature)
+    }));
+    const parcelMatches = new Map();
+
+    for (const parcelFeature of parcelData.features || []) {
+      const samples = parcelSamplePoints(parcelFeature);
+      const parcelBbox = turf.bbox(parcelFeature);
+      let best = null;
+
+      for (const boundary of boundaries) {
+        if (!bboxesOverlap(parcelBbox, boundary.bbox)) continue;
+        const score = samples.reduce((count, point) => {
+          try {
+            return count + (turf.booleanPointInPolygon(point, boundary.feature) ? 1 : 0);
+          } catch (e) {
+            return count;
+          }
+        }, 0);
+        if (score > 0 && (!best || score > best.score)) best = { ...boundary, score };
+      }
+
+      if (best) parcelMatches.set(best.index, parcelFeature);
+    }
+
+    return {
+      type: 'FeatureCollection',
+      features: boundaries.map(({ feature }, index) => {
+        const parcelFeature = parcelMatches.get(index);
+        const parcelProperties = parcelFeature ? parcelFeature.properties || {} : {};
+        const arcProperties = feature.properties || {};
+
+        return {
+          type: 'Feature',
+          geometry: feature.geometry,
+          parcelGeometry: parcelFeature ? parcelFeature.geometry : null,
+          properties: {
+            ...arcProperties,
+            ...parcelProperties,
+            f_all_bi_2: parcelProperties.f_all_bi_2 || cleanBoundaryName(arcProperties.BID),
+            f_all_bi_1: parcelProperties.f_all_bi_1 || BOROUGH_NAMES[arcProperties.BOROUGH] || 'Unknown',
+            f_all_bi_4: parcelProperties.f_all_bi_4 || null,
+            year_found: parcelProperties.year_found || null,
+            __boundary_source: 'arcgis'
+          }
+        };
+      })
+    };
+  }
 
   /**
    * Fetch BID GeoJSON (with localStorage caching)
@@ -23,14 +123,35 @@ const Data = (() => {
       }
     } catch (e) { /* cache miss */ }
 
-    const resp = await fetch(BID_URL);
-    if (!resp.ok) throw new Error(`BID fetch failed: ${resp.status}`);
-    const data = await resp.json();
+    const [parcelResult, boundaryResult] = await Promise.allSettled([
+      fetch(BID_PARCELS_URL),
+      fetch(BID_BOUNDARIES_URL)
+    ]);
+    const parcelResp = parcelResult.status === 'fulfilled' ? parcelResult.value : null;
+    const boundaryResp = boundaryResult.status === 'fulfilled' ? boundaryResult.value : null;
 
-    // Cache it
-    try {
-      localStorage.setItem(BID_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
-    } catch (e) { /* storage full, skip */ }
+    let parcelData = null;
+    let boundaryData = null;
+    if (parcelResp && parcelResp.ok) parcelData = await parcelResp.json();
+    if (boundaryResp && boundaryResp.ok) boundaryData = await boundaryResp.json();
+
+    if (!parcelData && !boundaryData) throw new Error('BID boundary sources are unavailable');
+
+    let data;
+    if (boundaryData) {
+      data = mergeBIDSources(parcelData || { type: 'FeatureCollection', features: [] }, boundaryData);
+    } else {
+      console.warn('ArcGIS BID boundaries unavailable; using Open Data parcel geometry');
+      data = parcelData;
+    }
+
+    // Cache only the complete joined result. A temporary source outage should
+    // not pin reduced fallback data in the browser for a week.
+    if (parcelData && boundaryData) {
+      try {
+        localStorage.setItem(BID_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch (e) { /* storage full, skip */ }
+    }
 
     return data;
   }
