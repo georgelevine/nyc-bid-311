@@ -333,15 +333,31 @@ const MapView = (() => {
       }
     }).addTo(map);
 
-    bufferLayer = L.geoJSON(processedPoly.buffered, {
+    const displayBoundary = processedPoly.displayBoundary || processedPoly.buffered;
+    const boundaryCasing = L.geoJSON(displayBoundary, {
+      interactive: false,
+      style: {
+        fill: false,
+        color: '#111827',
+        opacity: 0.9,
+        weight: 6,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }
+    });
+    const boundarySurface = L.geoJSON(displayBoundary, {
+      interactive: false,
       style: {
         fillColor: '#4f9cf7',
-        fillOpacity: 0.05,
+        fillOpacity: 0.06,
         color: '#fbbf24',
-        weight: 2,
-        dashArray: null
+        opacity: 1,
+        weight: 2.5,
+        lineCap: 'round',
+        lineJoin: 'round'
       }
-    }).addTo(map);
+    });
+    bufferLayer = L.layerGroup([boundaryCasing, boundarySurface]).addTo(map);
 
     selectedBIDBounds = Polygons.bboxToLatLngBounds(processedPoly.bbox);
     fitSelectedBID();

@@ -4,7 +4,35 @@
  */
 const Polygons = (() => {
   const BUFFER_METERS = 30; // Half a typical NYC street width
+  const DISPLAY_SIMPLIFY_TOLERANCE = 0.000015; // Roughly 1-2 meters in NYC
   const processedCache = new WeakMap();
+
+  function buildDisplayBoundary(feature) {
+    try {
+      const cleaned = turf.cleanCoords(feature);
+      const simplified = turf.simplify(cleaned, {
+        tolerance: DISPLAY_SIMPLIFY_TOLERANCE,
+        highQuality: true,
+        mutate: false
+      });
+      const geometry = simplified.geometry;
+
+      // The display layer should show only the outer perimeter. Interior rings
+      // remain in the source geometry used for point-in-polygon filtering.
+      if (geometry.type === 'Polygon') {
+        return turf.polygon([geometry.coordinates[0]], feature.properties || {});
+      }
+      if (geometry.type === 'MultiPolygon') {
+        return turf.multiPolygon(
+          geometry.coordinates.map(polygon => [polygon[0]]),
+          feature.properties || {}
+        );
+      }
+    } catch (e) {
+      // Fall back to the precise buffered geometry if display cleanup fails.
+    }
+    return feature;
+  }
 
   /**
    * Buffer a BID feature's MultiPolygon to fill street gaps.
@@ -63,6 +91,7 @@ const Polygons = (() => {
       const processed = {
         raw: feature,
         buffered: dissolved,
+        displayBoundary: buildDisplayBoundary(dissolved),
         bbox,
         paddedBbox,
         bufferDistance: BUFFER_METERS
