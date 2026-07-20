@@ -11,6 +11,7 @@ const Filters = (() => {
 
   function init(geojson) {
     bidData = geojson;
+    Polygons.registerFeatureCollection(geojson);
     buildBIDList();
     initBIDSearch();
     initDatePicker();

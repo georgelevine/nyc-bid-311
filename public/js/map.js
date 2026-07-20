@@ -189,7 +189,7 @@ const MapView = (() => {
   }
 
   /**
-   * Draw every BID's buffered boundary as a lightweight, clickable overview layer.
+   * Draw every BID's gap-filled boundary as a lightweight, clickable overview layer.
    */
   function drawBIDOverview(geojson, onSelect) {
     closeTouchPreview();
@@ -198,7 +198,7 @@ const MapView = (() => {
     selectedBIDIndex = null;
     touchPreviewBIDIndex = null;
 
-    const bufferedOverview = {
+    const boundaryOverview = {
       type: 'FeatureCollection',
       features: geojson.features.map((feature, index) => {
         const processed = Polygons.processFeature(feature);
@@ -211,7 +211,7 @@ const MapView = (() => {
       })
     };
 
-    bidOverviewLayer = L.geoJSON(bufferedOverview, {
+    bidOverviewLayer = L.geoJSON(boundaryOverview, {
       style: (feature) => overviewStyle(feature.properties.__bidIndex),
       onEachFeature: (feature, layer) => {
         const index = feature.properties.__bidIndex;
@@ -241,18 +241,21 @@ const MapView = (() => {
           },
           click: (event) => {
             L.DomEvent.stopPropagation(event);
-            if (index === selectedBIDIndex) return;
+            const resolvedIndex = Polygons.resolveOwnerIndex(event.latlng.lng, event.latlng.lat);
+            const targetIndex = resolvedIndex == null ? index : resolvedIndex;
+            const targetLayer = bidOverviewFeatures[targetIndex] || layer;
+            if (targetIndex === selectedBIDIndex) return;
 
-            if (isTouchDevice() && touchPreviewBIDIndex !== index) {
+            if (isTouchDevice() && touchPreviewBIDIndex !== targetIndex) {
               closeTouchPreview();
-              touchPreviewBIDIndex = index;
-              layer.openTooltip(event.latlng);
+              touchPreviewBIDIndex = targetIndex;
+              targetLayer.openTooltip(event.latlng);
               return;
             }
 
             touchPreviewBIDIndex = null;
-            layer.closeTooltip();
-            if (typeof onSelect === 'function') onSelect(index);
+            targetLayer.closeTooltip();
+            if (typeof onSelect === 'function') onSelect(targetIndex);
           },
           dblclick: (event) => {
             L.DomEvent.stopPropagation(event);

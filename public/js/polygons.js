@@ -1,11 +1,65 @@
 /**
  * polygons.js — BID polygon processing with Turf.js
- * Handles buffering tax lot parcels to fill street gaps and computing bounding boxes.
+ * Closes internal gaps between tax lot parcels without expanding the outer edge.
  */
 const Polygons = (() => {
-  const BUFFER_METERS = 30; // Half a typical NYC street width
+  const GAP_CLOSE_METERS = 30;
   const DISPLAY_SIMPLIFY_TOLERANCE = 0.000015; // Roughly 1-2 meters in NYC
   const processedCache = new WeakMap();
+  const featureIndices = new WeakMap();
+  let registeredFeatures = [];
+
+  function registerFeatureCollection(geojson) {
+    registeredFeatures = geojson && Array.isArray(geojson.features) ? geojson.features : [];
+    registeredFeatures.forEach((feature, index) => {
+      featureIndices.set(feature, index);
+      const processed = processedCache.get(feature);
+      if (processed) processed.registryIndex = index;
+    });
+  }
+
+  function dissolveFeature(feature) {
+    if (!feature || !feature.geometry || feature.geometry.type !== 'MultiPolygon') return feature;
+    try {
+      const polygons = feature.geometry.coordinates.map(coords => turf.polygon(coords));
+      if (polygons.length === 0) return feature;
+
+      let merged = polygons[0];
+      for (let i = 1; i < polygons.length; i++) {
+        try {
+          const union = turf.union(turf.featureCollection([merged, polygons[i]]));
+          if (union) merged = union;
+        } catch (e) {
+          return feature;
+        }
+      }
+      return merged;
+    } catch (e) {
+      return feature;
+    }
+  }
+
+  function buildGapFilledBoundary(feature) {
+    try {
+      // Morphological closing: expand to bridge interior streets, merge, then
+      // contract by the same amount so the exterior returns to the parcel edge.
+      const expanded = turf.buffer(feature, GAP_CLOSE_METERS, { units: 'meters' });
+      if (!expanded) return feature;
+      const mergedExpansion = dissolveFeature(expanded);
+      const contracted = turf.buffer(mergedExpansion, -GAP_CLOSE_METERS, { units: 'meters' });
+      if (!contracted) return feature;
+
+      // Re-union the source parcels so contraction never trims a corner or
+      // removes a small parcel at the district's true outside edge.
+      const restored = turf.union(turf.featureCollection([
+        contracted,
+        feature
+      ]));
+      return restored || feature;
+    } catch (e) {
+      return feature;
+    }
+  }
 
   function buildDisplayBoundary(feature) {
     try {
@@ -29,55 +83,28 @@ const Polygons = (() => {
         );
       }
     } catch (e) {
-      // Fall back to the precise buffered geometry if display cleanup fails.
+      // Fall back to the precise processed geometry if display cleanup fails.
     }
     return feature;
   }
 
   /**
-   * Buffer a BID feature's MultiPolygon to fill street gaps.
+   * Fill internal gaps in a BID MultiPolygon while preserving its outer edge.
    * Returns { buffered, bbox, paddedBbox }
    */
   function processFeature(feature) {
     if (!feature || !feature.geometry) return null;
-    if (processedCache.has(feature)) return processedCache.get(feature);
+    if (processedCache.has(feature)) {
+      const cached = processedCache.get(feature);
+      if (featureIndices.has(feature)) cached.registryIndex = featureIndices.get(feature);
+      return cached;
+    }
 
     try {
-      // Buffer each polygon to expand into streets
-      const buffered = turf.buffer(feature, BUFFER_METERS, { units: 'meters' });
-
-      if (!buffered) return null;
-
-      // Try to dissolve overlapping buffered polygons into a single shape
-      let dissolved = buffered;
-      if (buffered.geometry.type === 'MultiPolygon') {
-        try {
-          // Convert MultiPolygon to FeatureCollection of individual polygons
-          const polys = [];
-          for (const coords of buffered.geometry.coordinates) {
-            polys.push(turf.polygon(coords));
-          }
-          // Iteratively union them
-          if (polys.length > 1) {
-            let merged = polys[0];
-            for (let i = 1; i < polys.length; i++) {
-              try {
-                const u = turf.union(turf.featureCollection([merged, polys[i]]));
-                if (u) merged = u;
-              } catch (e) {
-                // Skip invalid polygons
-              }
-            }
-            dissolved = merged;
-          }
-        } catch (e) {
-          // Fall back to unbuffered dissolved
-          dissolved = buffered;
-        }
-      }
+      const gapFilled = buildGapFilledBoundary(feature);
 
       // Compute bounding box
-      const bbox = turf.bbox(dissolved);
+      const bbox = turf.bbox(gapFilled);
 
       // Pad bbox by ~50m for the SODA query (roughly 0.0005 degrees)
       const PAD = 0.0005;
@@ -90,11 +117,12 @@ const Polygons = (() => {
 
       const processed = {
         raw: feature,
-        buffered: dissolved,
-        displayBoundary: buildDisplayBoundary(dissolved),
+        buffered: gapFilled,
+        displayBoundary: buildDisplayBoundary(gapFilled),
         bbox,
         paddedBbox,
-        bufferDistance: BUFFER_METERS
+        gapCloseDistance: GAP_CLOSE_METERS,
+        registryIndex: featureIndices.has(feature) ? featureIndices.get(feature) : null
       };
       processedCache.set(feature, processed);
       return processed;
@@ -105,7 +133,7 @@ const Polygons = (() => {
   }
 
   /**
-   * Check if a point [lng, lat] is inside the buffered polygon
+   * Check if a point [lng, lat] is inside the gap-filled BID polygon.
    */
   function isPointInside(lng, lat, processedPolygon) {
     if (!processedPolygon || !processedPolygon.buffered) return false;
@@ -115,6 +143,50 @@ const Polygons = (() => {
     } catch (e) {
       return false;
     }
+  }
+
+  function distanceToRawFeature(point, feature) {
+    try {
+      if (turf.booleanPointInPolygon(point, feature)) return 0;
+      if (typeof turf.pointToPolygonDistance === 'function') {
+        return Math.abs(turf.pointToPolygonDistance(point, feature, { units: 'meters' }));
+      }
+
+      const boundary = turf.polygonToLine(feature);
+      const lines = turf.flatten(boundary).features;
+      return Math.min(...lines.map(line =>
+        turf.pointToLineDistance(point, line, { units: 'meters' })
+      ));
+    } catch (e) {
+      return turf.distance(point, turf.centroid(feature), { units: 'meters' });
+    }
+  }
+
+  function resolveOwnerIndex(lng, lat) {
+    if (registeredFeatures.length === 0) return null;
+    const point = turf.point([lng, lat]);
+    const candidates = [];
+
+    registeredFeatures.forEach((feature, index) => {
+      const processed = processFeature(feature);
+      if (!processed) return;
+      const bbox = processed.bbox;
+      if (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3]) return;
+      if (!turf.booleanPointInPolygon(point, processed.buffered)) return;
+
+      candidates.push({ index, distance: distanceToRawFeature(point, feature) });
+    });
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => a.distance - b.distance || a.index - b.index);
+    return candidates[0].index;
+  }
+
+  function isPointOwned(lng, lat, processedPolygon) {
+    if (!isPointInside(lng, lat, processedPolygon)) return false;
+    if (processedPolygon.registryIndex == null) return true;
+    const ownerIndex = resolveOwnerIndex(lng, lat);
+    return ownerIndex == null || ownerIndex === processedPolygon.registryIndex;
   }
 
   /**
@@ -127,5 +199,8 @@ const Polygons = (() => {
     );
   }
 
-  return { processFeature, isPointInside, bboxToLatLngBounds, BUFFER_METERS };
+  return {
+    registerFeatureCollection, processFeature, isPointInside, isPointOwned,
+    resolveOwnerIndex, bboxToLatLngBounds, GAP_CLOSE_METERS
+  };
 })();

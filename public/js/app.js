@@ -93,7 +93,7 @@ const App = (() => {
       showLoading('Filtering to BID boundary...');
 
       const portalFiltered = portalPins.filter(r =>
-        r.latitude && r.longitude && Polygons.isPointInside(r.longitude, r.latitude, processed)
+        r.latitude && r.longitude && Polygons.isPointOwned(r.longitude, r.latitude, processed)
       );
 
       allRecords = portalFiltered.map(Data.portalRecord);

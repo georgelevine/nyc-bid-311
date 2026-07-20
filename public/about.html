@@ -593,37 +593,39 @@
       encampments) which are geocoded to street centerlines.
     </p>
 
-    <h3>The Solution: Polygon Buffering</h3>
+    <h3>The Solution: Internal Gap Closing</h3>
     <p>
-      We buffer each BID's parcel polygons by <strong>30 meters</strong> (approximately half the width
-      of a typical NYC street) using Turf.js. The buffered shapes overlap across streets, creating a
-      continuous boundary that covers the full district area.
+      We use a <strong>30-meter geometric closing pass</strong> in Turf.js: parcels are temporarily expanded
+      so internal street gaps connect, merged, and then contracted by the same 30 meters. The original
+      parcels are added back afterward. The final exterior has a <strong>zero-meter offset</strong>, so the
+      district edge remains against its outermost parcels instead of expanding toward another BID.
     </p>
 
     <canvas id="buffer-viz" width="860" height="350"></canvas>
 
     <table class="data-table">
-      <tr><th>Buffer Distance</th><th>Gap Coverage</th><th>Notes</th></tr>
-      <tr><td>10m</td><td>55%</td><td>Too narrow for wide avenues</td></tr>
-      <tr><td>15m</td><td>70%</td><td>Covers most side streets</td></tr>
-      <tr><td>20m</td><td>76%</td><td>Good balance</td></tr>
-      <tr><td>30m</td><td>84%</td><td><strong>Used in this tool</strong> — covers avenues</td></tr>
-      <tr><td>50m</td><td>93%</td><td>Risk of including adjacent non-BID areas</td></tr>
+      <tr><th>Stage</th><th>Geometry</th><th>Purpose</th></tr>
+      <tr><td>1</td><td>Original tax lots</td><td>Preserve the authoritative outside edge</td></tr>
+      <tr><td>2</td><td>Temporary +30m expansion</td><td>Bridge streets between parcels in the same BID</td></tr>
+      <tr><td>3</td><td>Merge connected shapes</td><td>Create continuous internal coverage</td></tr>
+      <tr><td>4</td><td>Contract by 30m</td><td>Return the outside edge to zero offset</td></tr>
+      <tr><td>5</td><td>Restore original lots</td><td>Protect corners and small exterior parcels</td></tr>
     </table>
 
     <p>
       On the map, you can see both layers: the <strong style="color: #4f9cf7;">blue dashed outlines</strong>
       are the raw tax lot parcels, and the <strong style="color: #fbbf24;">yellow solid outline</strong>
-      is the 30m-buffered boundary used for filtering.
+      is the gap-filled boundary used for filtering. Its outer edge has no buffer.
     </p>
 
     <!-- ============================================ -->
     <h2>6. Coordinate Handling</h2>
     <p>
       Map pins use the coordinates returned by the 311 Portal. After the server fetches pins within
-      the selected BID's bounding box, the browser applies a point-in-polygon test against the buffered
+      the selected BID's bounding box, the browser applies a point-in-polygon test against the gap-filled
       BID boundary. This removes nearby requests that fall inside the rectangular query area but outside
-      the district.
+      the district. If two processed boundaries genuinely meet, a point is assigned only to
+      the BID whose original tax parcels are closest, preventing cross-BID double counting.
     </p>
 
     <!-- ============================================ -->
@@ -631,11 +633,11 @@
     <h3>Data Flow</h3>
     <ol>
       <li>User selects a BID from the dropdown</li>
-      <li>The raw tax lot parcels are buffered by 30m and merged into a single boundary</li>
-      <li>A bounding box (with 50m padding) is computed around the buffered boundary</li>
+      <li>Internal parcel gaps are closed with an equal expand-and-contract operation, leaving no exterior offset</li>
+      <li>A bounding box (with 50m query padding) is computed around the gap-filled boundary</li>
       <li>The server proxy queries the 311 Portal by date and bounding box, splitting the range into daily windows</li>
       <li>Days that reach the Portal's 100-record cap are queried again in a 2x2 spatial grid</li>
-      <li>Returned points are filtered client-side using Turf.js <code>booleanPointInPolygon()</code> against the buffered boundary</li>
+      <li>Returned points are filtered client-side against the gap-filled boundary and assigned to the nearest original BID parcels if boundaries meet</li>
       <li>Pins are plotted and color-coded by complaint type</li>
     </ol>
 
@@ -789,16 +791,16 @@
       ctx.textAlign = 'center';
       ctx.fillText('\u2192', W * 0.5, H * 0.5);
 
-      // RIGHT SIDE: Buffered
+      // RIGHT SIDE: Internal gaps filled, exterior restored
       ctx.fillStyle = '#9aa0a6';
       ctx.font = '13px -apple-system, sans-serif';
-      ctx.fillText('30m Buffered Boundary', W * 0.75, 28);
+      ctx.fillText('Internal Gaps Filled — 0m Outer Offset', W * 0.75, 28);
 
       const offsetX = W * 0.5 + 30;
 
-      // Draw expanded/buffered outline
+      // Draw a gap-filled outline aligned to the outside parcel edges
       ctx.beginPath();
-      ctx.roundRect(offsetX + 30, 35, 310, 275, 20);
+      ctx.roundRect(offsetX + 50, 50, 280, 245, 4);
       ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
       ctx.fill();
       ctx.strokeStyle = '#fbbf24';
