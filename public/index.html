@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/style.css?v=37" />
+  <link rel="stylesheet" href="css/style.css?v=38" />
 </head>
 <body>
   <!-- Header -->
@@ -44,13 +44,18 @@
   <div id="app-container">
     <!-- Sidebar / Mobile Drawer -->
     <aside id="sidebar" data-state="open">
-      <!-- Drag handle — mobile only, tap to cycle states -->
-      <div id="drawer-handle" aria-hidden="true">
-        <div class="drawer-handle-bar"></div>
+      <!-- Bottom-sheet controls — mobile only -->
+      <div id="drawer-handle">
+        <button id="drawer-grip" type="button" aria-controls="sidebar" aria-label="Resize details panel">
+          <span class="drawer-handle-bar" aria-hidden="true"></span>
+        </button>
         <div id="drawer-handle-label">
           <span id="drawer-handle-title">Filters</span>
           <span id="drawer-handle-subtitle">Choose a BID to begin</span>
         </div>
+        <button id="drawer-minimize" type="button" aria-controls="sidebar" aria-label="Minimize details panel" title="Minimize">
+          <span class="drawer-minimize-icon" aria-hidden="true"></span>
+        </button>
       </div>
 
       <div id="drawer-tabs" class="drawer-tabs" role="tablist" aria-label="BID details view">
@@ -176,12 +181,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <!-- App modules (utils first). Version bump busts browser cache. -->
-  <script src="js/utils.js?v=37"></script>
-  <script src="js/polygons.js?v=37"></script>
-  <script src="js/data.js?v=37"></script>
-  <script src="js/map.js?v=37"></script>
-  <script src="js/filters.js?v=37"></script>
-  <script src="js/summary.js?v=37"></script>
-  <script src="js/app.js?v=37"></script>
+  <script src="js/utils.js?v=38"></script>
+  <script src="js/polygons.js?v=38"></script>
+  <script src="js/data.js?v=38"></script>
+  <script src="js/map.js?v=38"></script>
+  <script src="js/filters.js?v=38"></script>
+  <script src="js/summary.js?v=38"></script>
+  <script src="js/app.js?v=38"></script>
 </body>
 </html>

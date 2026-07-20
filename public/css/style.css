@@ -1021,38 +1021,86 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
     width: auto;
     max-width: 100%;
     min-width: 0;
-    height: auto;
-    max-height: 92dvh;
+    height: 62dvh;
+    max-height: none;
+    overflow: hidden;
     border-right: none;
     border-top: 1px solid var(--border);
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
     z-index: 950;
-    transition: transform 0.25s ease, max-height 0.25s ease;
+    transition: transform 0.25s ease, height 0.25s ease;
+    will-change: height;
     order: 2;
   }
 
   /* Drawer states */
-  #sidebar[data-state="collapsed"] { max-height: 76px; transform: translateY(0); }
+  #sidebar[data-state="collapsed"] { height: 76px; transform: translateY(0); }
   #sidebar[data-state="collapsed"] #sidebar-scroll { pointer-events: none; overflow: hidden; }
-  #sidebar[data-state="half"] { max-height: 62dvh; }
+  #sidebar[data-state="half"] { height: 62dvh; }
   #sidebar[data-state="full"],
-  #sidebar[data-state="open"] { max-height: 92dvh; }
+  #sidebar[data-state="open"] { height: 92dvh; }
   #sidebar[data-state="closed"] { transform: translateY(100%); }
+  #sidebar.is-dragging { transition: none; }
 
-  /* Handle — visible, tappable, cycles states */
+  /* Handle — visible, draggable, with an explicit minimize control */
   #drawer-handle {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px 10px;
-    cursor: pointer;
+    padding: 24px 56px 10px 16px;
+    min-height: 76px;
+    cursor: grab;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    touch-action: none;
     flex-direction: column;
     position: relative;
     min-width: 0;
     max-width: 100%;
+  }
+  #sidebar.is-dragging #drawer-handle { cursor: grabbing; }
+  #drawer-grip {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 96px;
+    height: 28px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: grab;
+  }
+  #drawer-grip:focus-visible,
+  #drawer-minimize:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #drawer-minimize {
+    position: absolute;
+    top: 22px;
+    right: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  #drawer-minimize:active { background: rgba(255,255,255,0.06); }
+  #drawer-minimize:disabled { opacity: 0; pointer-events: none; }
+  .drawer-minimize-icon {
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translate(-2px, -2px);
   }
   .drawer-tabs {
     display: none;
@@ -1083,11 +1131,14 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
   #sidebar.has-results[data-view="summary"] #filter-section { display: none; }
   #sidebar.has-results[data-view="filters"] #summary-section { display: none; }
   .drawer-handle-bar {
-    width: 42px;
+    width: 48px;
     height: 5px;
-    border-radius: 2px;
-    background: var(--border);
+    border-radius: 3px;
+    background: #59616f;
+    transition: background 0.15s ease, width 0.15s ease;
   }
+  #drawer-grip:active .drawer-handle-bar,
+  #sidebar.is-dragging .drawer-handle-bar { width: 56px; background: var(--accent); }
   #drawer-handle-label {
     display: flex;
     flex-direction: column;
@@ -1102,7 +1153,7 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 96px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

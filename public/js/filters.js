@@ -21,12 +21,15 @@ const Filters = (() => {
 
   // ===== Drawer / Sidebar state =====
   // Desktop: sidebar has data-state="open|closed" (toggleable via header button)
-  // Mobile: sidebar has data-state="collapsed|half|full"; handle cycles states.
+  // Mobile: sidebar is a draggable bottom sheet with collapsed, half, and full snaps.
 
   function isMobile() { return window.matchMedia('(max-width: 768px)').matches; }
 
   function setSidebarState(state) {
-    document.getElementById('sidebar').dataset.state = state;
+    const sidebar = document.getElementById('sidebar');
+    sidebar.dataset.state = state;
+    sidebar.style.removeProperty('height');
+    updateDrawerControls(state);
     // Invalidate Leaflet size when sidebar width changes on desktop
     setTimeout(() => {
       if (window.MapView && MapView.getMap) {
@@ -38,16 +41,130 @@ const Filters = (() => {
     }, 260);
   }
 
+  function updateDrawerControls(state) {
+    const grip = document.getElementById('drawer-grip');
+    const minimize = document.getElementById('drawer-minimize');
+    if (grip) {
+      const expanded = !['collapsed', 'closed'].includes(state);
+      grip.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      grip.setAttribute('aria-label', state === 'full'
+        ? 'Drag details panel or tap for half height'
+        : state === 'half'
+          ? 'Drag details panel or tap for full height'
+          : 'Drag or tap to expand details panel');
+    }
+    if (minimize) minimize.disabled = ['collapsed', 'closed'].includes(state);
+  }
+
+  function mobileDrawerSnaps() {
+    const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const full = Math.round(viewportHeight * 0.92);
+    const half = Math.min(full - 76, Math.max(240, Math.round(viewportHeight * 0.62)));
+    return { collapsed: 76, half, full };
+  }
+
+  function nearestDrawerState(height, velocityY = 0) {
+    const snaps = mobileDrawerSnaps();
+    const projectedHeight = height - velocityY * 140;
+    return Object.entries(snaps).reduce((closest, entry) =>
+      Math.abs(entry[1] - projectedHeight) < Math.abs(closest[1] - projectedHeight) ? entry : closest
+    )[0];
+  }
+
+  function initDrawerDrag(handle) {
+    const sidebar = document.getElementById('sidebar');
+    let drag = null;
+    let suppressClick = false;
+
+    handle.addEventListener('pointerdown', event => {
+      if (!isMobile() || event.button > 0 || event.target.closest('#drawer-minimize')) return;
+      drag = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        startHeight: sidebar.getBoundingClientRect().height,
+        currentHeight: sidebar.getBoundingClientRect().height,
+        lastY: event.clientY,
+        lastTime: performance.now(),
+        velocityY: 0,
+        moved: false
+      };
+      handle.setPointerCapture(event.pointerId);
+    });
+
+    const moveDrag = event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const deltaY = event.clientY - drag.startY;
+      if (!drag.moved && Math.abs(deltaY) < 6) return;
+
+      drag.moved = true;
+      event.preventDefault();
+      const snaps = mobileDrawerSnaps();
+      const nextHeight = Math.max(snaps.collapsed, Math.min(snaps.full, drag.startHeight - deltaY));
+      const now = performance.now();
+      const elapsed = Math.max(1, now - drag.lastTime);
+      drag.velocityY = (event.clientY - drag.lastY) / elapsed;
+      drag.lastY = event.clientY;
+      drag.lastTime = now;
+      drag.currentHeight = nextHeight;
+      sidebar.classList.add('is-dragging');
+      sidebar.style.height = `${nextHeight}px`;
+    };
+
+    const finishDrag = event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+
+      const completedDrag = drag.moved;
+      const targetState = completedDrag
+        ? nearestDrawerState(drag.currentHeight, drag.velocityY)
+        : null;
+      drag = null;
+      sidebar.classList.remove('is-dragging');
+
+      if (completedDrag) {
+        event.preventDefault();
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 350);
+        setSidebarState(targetState);
+      }
+    };
+
+    const cancelDrag = event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      drag = null;
+      sidebar.classList.remove('is-dragging');
+      setSidebarState(sidebar.dataset.state || 'half');
+    };
+
+    // Listen at the window so a fast swipe remains tracked after leaving the grip.
+    window.addEventListener('pointermove', moveDrag, { passive: false });
+    window.addEventListener('pointerup', finishDrag);
+    window.addEventListener('pointercancel', cancelDrag);
+
+    handle.addEventListener('click', event => {
+      if (!isMobile() || event.target.closest('#drawer-minimize')) return;
+      if (suppressClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        suppressClick = false;
+        return;
+      }
+      const current = sidebar.dataset.state || 'half';
+      const next = current === 'collapsed' ? 'half' : current === 'half' ? 'full' : 'half';
+      setSidebarState(next);
+    });
+  }
+
   function initDrawer() {
     const handle = document.getElementById('drawer-handle');
+    const minimize = document.getElementById('drawer-minimize');
     const toggle = document.getElementById('sidebar-toggle');
 
-    if (handle) {
-      handle.addEventListener('click', () => {
-        if (!isMobile()) return;
-        const cur = document.getElementById('sidebar').dataset.state || 'half';
-        const next = cur === 'collapsed' ? 'half' : cur === 'half' ? 'full' : 'collapsed';
-        setSidebarState(next);
+    if (handle) initDrawerDrag(handle);
+    if (minimize) {
+      minimize.addEventListener('click', event => {
+        event.stopPropagation();
+        if (isMobile()) setSidebarState('collapsed');
       });
     }
 
