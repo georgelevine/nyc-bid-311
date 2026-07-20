@@ -5,6 +5,7 @@ const Data = (() => {
   const BID_URL = 'https://data.cityofnewyork.us/resource/7jdm-inj8.geojson?$limit=100';
   const BID_CACHE_KEY = 'nyc_bid_geojson';
   const BID_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const portalDetailCache = new Map();
 
   /**
    * Fetch BID GeoJSON (with localStorage caching)
@@ -106,5 +107,24 @@ const Data = (() => {
     };
   }
 
-  return { fetchBIDs, fetch311Portal, portalRecord };
+  function fetchPortalDetail(portalId) {
+    if (!portalId) return Promise.resolve(null);
+    if (portalDetailCache.has(portalId)) return portalDetailCache.get(portalId);
+
+    const request = fetch(`/api/portal-detail?id=${encodeURIComponent(portalId)}`)
+      .then(resp => {
+        if (!resp.ok) throw new Error(`Portal detail fetch failed: ${resp.status}`);
+        return resp.json();
+      })
+      .catch(err => {
+        portalDetailCache.delete(portalId);
+        console.warn('Portal case detail unavailable:', err.message);
+        return null;
+      });
+
+    portalDetailCache.set(portalId, request);
+    return request;
+  }
+
+  return { fetchBIDs, fetch311Portal, fetchPortalDetail, portalRecord };
 })();

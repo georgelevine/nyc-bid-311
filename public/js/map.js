@@ -380,14 +380,29 @@ const MapView = (() => {
    */
   function addStackedMarker(group, typeColor) {
     const count = group.records.length;
-    const marker = L.circleMarker([group.lat, group.lng], {
-      radius: count > 1 ? MARKER_RADIUS + 2 : MARKER_RADIUS,
-      fillColor: typeColor,
-      fillOpacity: 0.9,
-      color: count > 1 ? '#fff' : MARKER_STROKE,
-      weight: count > 1 ? 2 : MARKER_STROKE_WEIGHT,
-      opacity: 1
-    });
+    const useTouchTarget = map.getContainer().clientWidth <= 768 ||
+      window.matchMedia('(pointer: coarse)').matches;
+    const marker = useTouchTarget
+      ? L.marker([group.lat, group.lng], {
+          icon: L.divIcon({
+            className: 'case-touch-target',
+            html: `<span class="case-touch-dot${count > 1 ? ' stacked' : ''}" style="--case-color:${typeColor}">${count > 1 ? count : ''}</span>`,
+            iconSize: [44, 44],
+            iconAnchor: [22, 22],
+            popupAnchor: [0, -13]
+          }),
+          keyboard: true,
+          riseOnHover: true,
+          title: group.records[0].complaint_type || '311 request'
+        })
+      : L.circleMarker([group.lat, group.lng], {
+          radius: count > 1 ? MARKER_RADIUS + 2 : MARKER_RADIUS,
+          fillColor: typeColor,
+          fillOpacity: 0.9,
+          color: count > 1 ? '#fff' : MARKER_STROKE,
+          weight: count > 1 ? 2 : MARKER_STROKE_WEIGHT,
+          opacity: 1
+        });
 
     // Paging state is per-popup; store index on the marker
     marker._pageIdx = 0;
@@ -398,7 +413,9 @@ const MapView = (() => {
       maxWidth: 340,
       minWidth: 280,
       keepInView: true,
-      autoPan: true
+      autoPan: true,
+      autoPanPaddingTopLeft: useTouchTarget ? L.point(16, 72) : L.point(16, 16),
+      autoPanPaddingBottomRight: useTouchTarget ? L.point(16, 96) : L.point(16, 16)
     });
 
     installDesktopHoverPopup(marker);
@@ -510,6 +527,7 @@ const MapView = (() => {
       const next = root.querySelector('.pager-next');
       if (prev) prev.onclick = (e) => { e.stopPropagation(); if (marker._pageIdx > 0) { marker._pageIdx--; marker.setPopupContent(buildStackedPopup(marker)); } };
       if (next) next.onclick = (e) => { e.stopPropagation(); if (marker._pageIdx < count - 1) { marker._pageIdx++; marker.setPopupContent(buildStackedPopup(marker)); } };
+      hydratePopupDetails(rec);
     }, 0);
 
     return pager + buildPopupForRecord(rec);
@@ -579,57 +597,71 @@ const MapView = (() => {
    */
   function buildPopupForRecord(rec) {
     const statusClass = (rec.status || '').toLowerCase().replace(/\s+/g, '-');
-    const sourceLabel = '311 Portal';
-    const sourceClass = 'source-portal';
+    const submitted = formatDate(rec.created_date);
+    const age = formatRelativeAge(rec.created_date);
+    const coords = rec.latitude != null && rec.longitude != null
+      ? `${Number(rec.latitude).toFixed(5)}, ${Number(rec.longitude).toFixed(5)}`
+      : null;
 
-    let html = `<div class="popup-title">${Utils.esc(rec.complaint_type || 'Unknown')}</div>`;
-
-    if (rec.descriptor) {
-      html += `<div class="popup-row"><span class="popup-label">Detail</span><span class="popup-value">${Utils.esc(rec.descriptor)}</span></div>`;
-    }
-
-    html += `<div class="popup-row"><span class="popup-label">Status</span><span class="popup-value"><span class="popup-badge ${statusClass}">${Utils.esc(rec.status || 'Unknown')}</span></span></div>`;
-
-    if (rec.agency_name || rec.agency) {
-      html += `<div class="popup-row"><span class="popup-label">Agency</span><span class="popup-value">${Utils.esc(rec.agency_name || rec.agency)}</span></div>`;
-    }
-
-    html += `<div class="popup-row"><span class="popup-label">Created</span><span class="popup-value">${formatDate(rec.created_date)}</span></div>`;
-
-    if (rec.closed_date) {
-      html += `<div class="popup-row"><span class="popup-label">Closed</span><span class="popup-value">${formatDate(rec.closed_date)}</span></div>`;
-    }
+    let html = `<div class="popup-case-header">
+      <div>
+        <div class="popup-title">${Utils.esc(rec.complaint_type || 'Unknown')}</div>
+        ${rec.srnumber ? `<div class="popup-case-number">${Utils.esc(rec.srnumber)}</div>` : ''}
+      </div>
+      <span class="popup-badge ${statusClass}">${Utils.esc(rec.status || 'Unknown')}</span>
+    </div>`;
 
     if (rec.incident_address) {
-      html += `<div class="popup-row"><span class="popup-label">Address</span><span class="popup-value">${Utils.esc(rec.incident_address)}</span></div>`;
+      html += `<div class="popup-address">${Utils.esc(rec.incident_address)}</div>`;
     }
 
-    if (rec.community_board) {
-      html += `<div class="popup-row"><span class="popup-label">Community Board</span><span class="popup-value">${Utils.esc(rec.community_board)}</span></div>`;
+    html += `<div class="popup-facts">
+      <div class="popup-fact"><span>Submitted</span><strong>${Utils.esc(submitted)}</strong></div>
+      ${age ? `<div class="popup-fact"><span>Age</span><strong>${Utils.esc(age)}</strong></div>` : ''}
+      ${coords ? `<div class="popup-fact popup-coordinates"><span>Coordinates</span><strong>${coords}</strong></div>` : ''}
+    </div>`;
+
+    if (rec.portalId) {
+      html += `<div class="popup-enrichment" data-portal-id="${Utils.esc(rec.portalId)}"><span class="popup-detail-loading">Loading case details...</span></div>`;
     }
 
-    if (rec.open_data_channel_type) {
-      html += `<div class="popup-row"><span class="popup-label">Channel</span><span class="popup-value">${Utils.esc(rec.open_data_channel_type)}</span></div>`;
-    }
-
-    html += `<div class="popup-row"><span class="popup-label">Source</span><span class="popup-value"><span class="popup-badge ${sourceClass}">${sourceLabel}</span></span></div>`;
-
-    if (rec.srnumber) {
-      html += `<div class="popup-row"><span class="popup-label">SR#</span><span class="popup-value">${Utils.esc(rec.srnumber)}</span></div>`;
-    }
-
-    if (rec.resolution_description) {
-      const resTruncated = rec.resolution_description.length > 300
-        ? rec.resolution_description.substring(0, 300) + '...'
-        : rec.resolution_description;
-      html += `<div class="popup-resolution"><strong>Resolution:</strong> ${Utils.esc(resTruncated)}</div>`;
-    }
-
+    html += '<div class="popup-case-footer"><span>Live NYC311 Portal</span>';
     if (rec.portalUrl) {
-      html += `<a href="${rec.portalUrl}" target="_blank" class="popup-link">View on 311 Portal &rarr;</a>`;
+      html += `<a href="${rec.portalUrl}" target="_blank" rel="noopener" class="popup-link">Open full case &rarr;</a>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  async function hydratePopupDetails(rec) {
+    if (!rec.portalId || !Data.fetchPortalDetail) return;
+    const detail = await Data.fetchPortalDetail(rec.portalId);
+    const root = document.querySelector('.leaflet-popup-content');
+    if (!root) return;
+    const target = Array.from(root.querySelectorAll('.popup-enrichment'))
+      .find(el => el.dataset.portalId === rec.portalId);
+    if (!target) return;
+
+    if (!detail) {
+      target.innerHTML = '<span class="popup-detail-unavailable">More details are available on NYC311.</span>';
+      return;
     }
 
-    return html;
+    const rows = [];
+    const useful = value => value && !['n/a', 'none', 'not available'].includes(String(value).trim().toLowerCase());
+    if (useful(detail.problemDetails)) rows.push(['Problem details', detail.problemDetails]);
+    if (useful(detail.additionalDetails)) rows.push(['Additional details', detail.additionalDetails]);
+    if (detail.updatedOn) rows.push(['Last updated', formatDate(detail.updatedOn)]);
+    if (detail.dateClosed) rows.push(['Closed', formatDate(detail.dateClosed)]);
+    if (detail.nextUpdate) rows.push(['Next update', detail.nextUpdate]);
+
+    if (rows.length === 0) {
+      target.remove();
+      return;
+    }
+    target.innerHTML = rows.map(([label, value]) =>
+      `<div class="popup-detail-row"><span>${Utils.esc(label)}</span><strong>${Utils.esc(value)}</strong></div>`
+    ).join('');
   }
 
   /**
@@ -686,6 +718,18 @@ const MapView = (() => {
       }
       return str.replace(/:\d{2}\s/, ' ');
     } catch (e) { return str; }
+  }
+
+  function formatRelativeAge(str) {
+    if (!str) return null;
+    const timestamp = new Date(str).getTime();
+    if (!Number.isFinite(timestamp)) return null;
+    const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 48) return `${hours} hr`;
+    return `${Math.floor(hours / 24)} days`;
   }
 
   return {

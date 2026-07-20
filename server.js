@@ -1,6 +1,7 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
+const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -370,6 +371,65 @@ app.get('/api/portal-sr', async (req, res) => {
   } catch (err) {
     console.error('SR lookup proxy error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+function parsePortalDetail(html) {
+  const $ = cheerio.load(html);
+  const fields = {};
+
+  $('.info label').each((_, label) => {
+    const name = $(label).text().replace(/\s+/g, ' ').trim();
+    const field = $(label).closest('[class*="col-"]');
+    const value = field.find('.control span').first().text()
+      .replace(/\s+/g, ' ').trim();
+    if (name && value && value !== '-') fields[name] = value;
+  });
+
+  const scripts = $('script').map((_, script) => $(script).html() || '').get().join('\n');
+  const scriptDate = (id) => {
+    const pattern = new RegExp(`\\$\\(["']#${id}["']\\)\\.text\\(getESTDate\\(["']([^"']+)["']\\)\\)`);
+    const match = scripts.match(pattern);
+    return match ? match[1] : null;
+  };
+
+  return {
+    srnumber: fields['SR Number'] || null,
+    status: fields['SR Status'] || null,
+    problem: fields.Problem || null,
+    problemDetails: fields['Problem Details'] || null,
+    additionalDetails: fields['Additional Details'] || null,
+    address: fields['SR Address'] || null,
+    nextUpdate: fields['Time To Next Update'] || null,
+    dateReported: scriptDate('srdatereported'),
+    updatedOn: scriptDate('srupdatedon'),
+    dateClosed: scriptDate('srdateclosed')
+  };
+}
+
+// Enrich a map pin only when its popup is opened.
+app.get('/api/portal-detail', async (req, res) => {
+  const id = String(req.query.id || '').trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return res.status(400).json({ error: 'valid id parameter required' });
+  }
+
+  const ck = cacheKey({ endpoint: 'portal-detail', id });
+  const cached = getCached(ck);
+  if (cached) return res.json(cached);
+
+  try {
+    const response = await fetch(`https://portal.311.nyc.gov/sr-details/?id=${encodeURIComponent(id)}`, {
+      headers: { ...PORTAL_HEADERS, Accept: 'text/html,application/xhtml+xml' }
+    });
+    if (!response.ok) throw new Error(`Portal detail fetch failed: ${response.status}`);
+
+    const detail = parsePortalDetail(await response.text());
+    setCache(ck, detail);
+    res.json(detail);
+  } catch (err) {
+    console.error('Portal detail proxy error:', err.message);
+    res.status(502).json({ error: 'Case details are temporarily unavailable' });
   }
 });
 
