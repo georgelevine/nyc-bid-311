@@ -4,6 +4,7 @@
  */
 const Polygons = (() => {
   const GAP_CLOSE_METERS = 30;
+  const GAP_CLOSE_STEPS = 1;
   const DISPLAY_SIMPLIFY_TOLERANCE = 0.000015; // Roughly 1-2 meters in NYC
   const processedCache = new WeakMap();
   const featureIndices = new WeakMap();
@@ -39,15 +40,36 @@ const Polygons = (() => {
     }
   }
 
+  function stripInteriorRings(feature) {
+    if (!feature || !feature.geometry) return feature;
+    const properties = feature.properties || {};
+    if (feature.geometry.type === 'Polygon') {
+      return turf.polygon([feature.geometry.coordinates[0]], properties);
+    }
+    if (feature.geometry.type === 'MultiPolygon') {
+      return turf.multiPolygon(
+        feature.geometry.coordinates.map(polygon => [polygon[0]]),
+        properties
+      );
+    }
+    return feature;
+  }
+
   function buildGapFilledBoundary(feature) {
     try {
       // Morphological closing: expand to bridge interior streets, merge, then
       // contract by the same amount so the exterior returns to the parcel edge.
-      const expanded = turf.buffer(feature, GAP_CLOSE_METERS, { units: 'meters' });
-      if (!expanded) return feature;
+      const expanded = turf.buffer(feature, GAP_CLOSE_METERS, {
+        units: 'meters',
+        steps: GAP_CLOSE_STEPS
+      });
+      if (!expanded) return stripInteriorRings(feature);
       const mergedExpansion = dissolveFeature(expanded);
-      const contracted = turf.buffer(mergedExpansion, -GAP_CLOSE_METERS, { units: 'meters' });
-      if (!contracted) return feature;
+      const contracted = turf.buffer(mergedExpansion, -GAP_CLOSE_METERS, {
+        units: 'meters',
+        steps: GAP_CLOSE_STEPS
+      });
+      if (!contracted) return stripInteriorRings(feature);
 
       // Re-union the source parcels so contraction never trims a corner or
       // removes a small parcel at the district's true outside edge.
@@ -55,9 +77,9 @@ const Polygons = (() => {
         contracted,
         feature
       ]));
-      return restored || feature;
+      return stripInteriorRings(restored || feature);
     } catch (e) {
-      return feature;
+      return stripInteriorRings(feature);
     }
   }
 
@@ -69,19 +91,7 @@ const Polygons = (() => {
         highQuality: true,
         mutate: false
       });
-      const geometry = simplified.geometry;
-
-      // The display layer should show only the outer perimeter. Interior rings
-      // remain in the source geometry used for point-in-polygon filtering.
-      if (geometry.type === 'Polygon') {
-        return turf.polygon([geometry.coordinates[0]], feature.properties || {});
-      }
-      if (geometry.type === 'MultiPolygon') {
-        return turf.multiPolygon(
-          geometry.coordinates.map(polygon => [polygon[0]]),
-          feature.properties || {}
-        );
-      }
+      return stripInteriorRings(simplified);
     } catch (e) {
       // Fall back to the precise processed geometry if display cleanup fails.
     }

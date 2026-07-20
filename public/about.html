@@ -599,6 +599,8 @@
       so internal street gaps connect, merged, and then contracted by the same 30 meters. The original
       parcels are added back afterward. The final exterior has a <strong>zero-meter offset</strong>, so the
       district edge remains against its outermost parcels instead of expanding toward another BID.
+      Enclosed interior rings are filled as part of the district so they do not appear as unexplained
+      holes in the map or disagree with the area used for request filtering.
     </p>
 
     <canvas id="buffer-viz" width="860" height="350"></canvas>

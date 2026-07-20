@@ -202,7 +202,7 @@ const MapView = (() => {
       type: 'FeatureCollection',
       features: geojson.features.map((feature, index) => {
         const processed = Polygons.processFeature(feature);
-        const displayFeature = processed ? processed.buffered : feature;
+        const displayFeature = processed ? processed.displayBoundary : feature;
         return {
           type: 'Feature',
           properties: { ...(feature.properties || {}), __bidIndex: index },
@@ -297,6 +297,8 @@ const MapView = (() => {
       color: selected ? '#fbbf24' : hovered ? '#8cc4ff' : '#4f9cf7',
       opacity: selected ? 1 : hovered ? 0.78 : dimmed ? 0.25 : 0.92,
       weight: selected ? 2.5 : hovered ? 1.8 : dimmed ? 1 : 1.2,
+      lineCap: 'butt',
+      lineJoin: 'miter',
       className: 'bid-overview-boundary'
     };
   }
@@ -332,7 +334,9 @@ const MapView = (() => {
         fillOpacity: 0.15,
         color: '#4f9cf7',
         weight: 1,
-        dashArray: '4 4'
+        dashArray: '4 4',
+        lineCap: 'butt',
+        lineJoin: 'miter'
       }
     }).addTo(map);
 
@@ -344,8 +348,8 @@ const MapView = (() => {
         color: '#111827',
         opacity: 0.9,
         weight: 6,
-        lineCap: 'round',
-        lineJoin: 'round'
+        lineCap: 'butt',
+        lineJoin: 'miter'
       }
     });
     const boundarySurface = L.geoJSON(displayBoundary, {
@@ -356,8 +360,8 @@ const MapView = (() => {
         color: '#fbbf24',
         opacity: 1,
         weight: 2.5,
-        lineCap: 'round',
-        lineJoin: 'round'
+        lineCap: 'butt',
+        lineJoin: 'miter'
       }
     });
     bufferLayer = L.layerGroup([boundaryCasing, boundarySurface]).addTo(map);
