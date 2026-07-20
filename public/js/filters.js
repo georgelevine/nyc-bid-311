@@ -216,11 +216,13 @@ const Filters = (() => {
     if (legendToggle) {
       legendToggle.addEventListener('click', () => {
         document.getElementById('map-legend').dataset.state = 'open';
+        syncMapToSidebar(180);
       });
     }
     if (legendClose) {
       legendClose.addEventListener('click', () => {
         document.getElementById('map-legend').dataset.state = 'closed';
+        syncMapToSidebar(180);
       });
     }
 

@@ -35,9 +35,13 @@ const Summary = (() => {
     if (statusContainer) statusContainer.classList.toggle('hidden', !showStatus);
     if (statusHeader) statusHeader.classList.toggle('hidden', !showStatus);
 
+    const showRequestTable = !!(filters.complaintType || filters.agency || filters.channel);
+    section.classList.toggle('showing-request-table', showRequestTable);
+    renderComplaintSection(allRecords, showRequestTable);
+
     // Charts
     updateStatusChart(allRecords);
-    updateComplaintsChart(allRecords);
+    if (!showRequestTable) updateComplaintsChart(allRecords);
     updateTimelineChart(allRecords);
   }
 
@@ -69,6 +73,68 @@ const Summary = (() => {
     );
     const clearAll = document.getElementById('clear-all-filters');
     if (clearAll) clearAll.addEventListener('click', () => App.clearAllFilters());
+  }
+
+  function renderComplaintSection(records, showRequestTable) {
+    const header = document.getElementById('complaints-section-header');
+    const chart = document.getElementById('complaints-chart-container');
+    const table = document.getElementById('request-table-container');
+    if (!header || !chart || !table) return;
+
+    header.textContent = showRequestTable
+      ? `Service Requests (${records.length.toLocaleString()})`
+      : 'Top Complaint Types';
+    chart.classList.toggle('hidden', showRequestTable);
+    table.classList.toggle('hidden', !showRequestTable);
+
+    if (showRequestTable) renderRequestTable(table, records);
+    else table.innerHTML = '';
+  }
+
+  function renderRequestTable(container, records) {
+    const sorted = [...records].sort((a, b) => requestTimestamp(b) - requestTimestamp(a));
+    const rows = sorted.map((record, index) => {
+      const type = record.complaint_type || 'Unknown';
+      const srnumber = record.srnumber || 'Unavailable';
+      const requestNumber = record.portalUrl
+        ? `<a class="request-number" href="${Utils.esc(record.portalUrl)}" target="_blank" rel="noopener">${Utils.esc(srnumber)}</a>`
+        : `<span class="request-number">${Utils.esc(srnumber)}</span>`;
+      return `<tr>
+        <td class="request-primary"><strong title="${Utils.esc(type)}">${Utils.esc(type)}</strong>${requestNumber}</td>
+        <td>${Utils.esc(normalizeStatus(record.status))}</td>
+        <td>${Utils.esc(formatRequestDate(record.created_date))}</td>
+        <td class="request-address" title="${Utils.esc(record.incident_address || '')}">${Utils.esc(record.incident_address || 'No address')}</td>
+        <td><button class="request-map-btn" data-request-index="${index}" type="button">View</button></td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `<table class="request-table">
+      <thead><tr><th>Request</th><th>Status</th><th>Reported</th><th>Address</th><th>Map</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="request-table-empty">No matching requests</td></tr>'}</tbody>
+    </table>`;
+
+    container.querySelectorAll('.request-map-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        const record = sorted[Number(button.dataset.requestIndex)];
+        if (record && typeof MapView !== 'undefined' && MapView.focusRecord) MapView.focusRecord(record);
+      });
+    });
+  }
+
+  function requestTimestamp(record) {
+    const timestamp = Date.parse(record.created_date || '');
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function formatRequestDate(value) {
+    const day = Utils.parseCreatedDate(value);
+    if (!day) return 'Unknown';
+    const date = new Date(`${day}T00:00:00`);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function normalizeStatus(value) {
+    return String(value || 'Unknown').toLowerCase() === 'closed' ? 'Closed' : 'Open';
   }
 
   /**

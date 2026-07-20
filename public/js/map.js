@@ -16,6 +16,8 @@ const MapView = (() => {
   let currentTypeColorMap = {};
   let activeCategories = new Set();
   let desktopHoverPopupMarker = null;
+  let mapResizeObserver = null;
+  let mapLayoutFrame = null;
 
   const MARKER_RADIUS = 8;
   const MARKER_STROKE = '#3a3a3a';
@@ -27,6 +29,10 @@ const MapView = (() => {
     '#60a5fa', '#a78bfa', '#f472b6', '#a3e635', '#e879f9',
     '#94a3b8', '#fca5a5', '#fdba74', '#fde047', '#6ee7b7'
   ];
+
+  function isMobileLayout() {
+    return window.matchMedia('(max-width: 768px)').matches;
+  }
 
   function init() {
     map = L.map('map', {
@@ -71,8 +77,30 @@ const MapView = (() => {
     if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
       document.addEventListener('mousemove', handleDesktopPopupPointerMove, { passive: true });
     }
+    installResponsiveMapLayout();
 
     return map;
+  }
+
+  function installResponsiveMapLayout() {
+    const container = map.getContainer();
+    if (typeof ResizeObserver !== 'undefined') {
+      mapResizeObserver = new ResizeObserver(scheduleMapLayoutFit);
+      mapResizeObserver.observe(container);
+    }
+    window.addEventListener('resize', scheduleMapLayoutFit, { passive: true });
+    window.addEventListener('load', scheduleMapLayoutFit, { once: true });
+    scheduleMapLayoutFit();
+  }
+
+  function scheduleMapLayoutFit() {
+    if (!map) return;
+    if (mapLayoutFrame !== null) window.cancelAnimationFrame(mapLayoutFrame);
+    mapLayoutFrame = window.requestAnimationFrame(() => {
+      mapLayoutFrame = null;
+      map.invalidateSize({ pan: false, debounceMoveend: true });
+      if (selectedBIDBounds) fitSelectedBID();
+    });
   }
 
   function installMobileDoubleTapZoom() {
@@ -241,7 +269,7 @@ const MapView = (() => {
 
     if (bidOverviewLayer.getBounds().isValid()) {
       const bounds = bidOverviewLayer.getBounds();
-      const overviewZoom = map.getContainer().clientWidth <= 768 ? 10 : 11;
+      const overviewZoom = isMobileLayout() ? 10 : 11;
       map.setView(bounds.getCenter(), overviewZoom, { animate: false });
     }
   }
@@ -322,22 +350,31 @@ const MapView = (() => {
   function fitSelectedBID() {
     if (!selectedBIDBounds || !selectedBIDBounds.isValid()) return;
 
-    const mobile = map.getContainer().clientWidth <= 768;
+    const mapContainer = map.getContainer();
+    const mapRect = mapContainer.getBoundingClientRect();
+    const mobile = isMobileLayout();
     const sidebar = document.getElementById('sidebar');
     const sidebarState = sidebar ? sidebar.dataset.state : null;
     if (mobile && sidebarState === 'full') return;
 
     let coveredHeight = 0;
+    let coveredWidth = 0;
     if (mobile && sidebar && sidebarState !== 'closed') {
-      const mapRect = map.getContainer().getBoundingClientRect();
       const sidebarRect = sidebar.getBoundingClientRect();
       coveredHeight = Math.max(0, mapRect.bottom - Math.max(mapRect.top, sidebarRect.top));
+    }
+    if (!mobile) {
+      const legend = document.getElementById('map-legend');
+      if (legend && !legend.classList.contains('hidden') && legend.dataset.state === 'open') {
+        const legendRect = legend.getBoundingClientRect();
+        coveredWidth = Math.max(0, mapRect.right - Math.max(mapRect.left, legendRect.left));
+      }
     }
 
     const edge = mobile ? 20 : 30;
     map.fitBounds(selectedBIDBounds, {
       paddingTopLeft: [edge, edge],
-      paddingBottomRight: [edge, edge + coveredHeight],
+      paddingBottomRight: [edge + coveredWidth, edge + coveredHeight],
       maxZoom: mobile ? 17 : 18,
       animate: false
     });
@@ -368,7 +405,41 @@ const MapView = (() => {
     }
 
     const legend = document.getElementById('map-legend');
+    const legendWasHidden = legend.classList.contains('hidden');
     legend.classList.remove('hidden');
+    if (legendWasHidden) scheduleMapLayoutFit();
+  }
+
+  function focusRecord(record) {
+    if (!record || !markersLayer) return;
+    let targetMarker = null;
+    let targetIndex = 0;
+
+    markersLayer.eachLayer(marker => {
+      if (targetMarker || !marker._group) return;
+      const index = marker._group.records.findIndex(candidate =>
+        candidate === record ||
+        (record.portalId && candidate.portalId === record.portalId) ||
+        (record.srnumber && candidate.srnumber === record.srnumber)
+      );
+      if (index >= 0) {
+        targetMarker = marker;
+        targetIndex = index;
+      }
+    });
+    if (!targetMarker) return;
+
+    const open = () => {
+      targetMarker._pageIdx = targetIndex;
+      targetMarker._popupPinned = true;
+      targetMarker.getPopup().options.autoPan = true;
+      targetMarker.openPopup();
+      const popupElement = targetMarker.getPopup().getElement();
+      if (popupElement) popupElement.classList.remove('hover-preview');
+    };
+
+    if (markersLayer.zoomToShowLayer) markersLayer.zoomToShowLayer(targetMarker, open);
+    else open();
   }
 
   /**
@@ -377,7 +448,7 @@ const MapView = (() => {
    */
   function addStackedMarker(group, typeColor) {
     const count = group.records.length;
-    const useTouchTarget = map.getContainer().clientWidth <= 768 ||
+    const useTouchTarget = isMobileLayout() ||
       window.matchMedia('(pointer: coarse)').matches;
     const marker = useTouchTarget
       ? L.marker([group.lat, group.lng], {
@@ -438,7 +509,7 @@ const MapView = (() => {
       marker._popupCloseTimer = window.setTimeout(() => {
         marker._popupCloseTimer = null;
         if (!marker._popupPinned && !marker._popupHovered) marker.closePopup();
-      }, 480);
+      }, 100);
     };
     marker._scheduleHoverPopupClose = scheduleClose;
 
@@ -447,6 +518,8 @@ const MapView = (() => {
       desktopHoverPopupMarker = marker;
       marker.getPopup().options.autoPan = false;
       if (!marker.isPopupOpen || !marker.isPopupOpen()) marker.openPopup();
+      const popupElement = marker.getPopup().getElement();
+      if (popupElement) popupElement.classList.add('hover-preview');
     };
     marker.on('mouseover', openHoverPopup);
     marker.on('mouseout', scheduleClose);
@@ -462,10 +535,13 @@ const MapView = (() => {
       marker._popupPinned = true;
       marker.getPopup().options.autoPan = true;
       marker.openPopup();
+      const popupElement = marker.getPopup().getElement();
+      if (popupElement) popupElement.classList.remove('hover-preview');
     });
     marker.on('popupopen', () => {
       const element = marker.getPopup().getElement();
       if (!element) return;
+      element.classList.toggle('hover-preview', !marker._popupPinned);
       element.onmouseenter = () => {
         marker._popupHovered = true;
         cancelClose();
@@ -476,6 +552,7 @@ const MapView = (() => {
       };
       element.onpointerdown = () => {
         marker._popupPinned = true;
+        element.classList.remove('hover-preview');
         cancelClose();
       };
     });
@@ -774,6 +851,6 @@ const MapView = (() => {
   return {
     init, drawBIDOverview, drawBIDPolygon, plotRecords, buildCategoryLegend, updateHeatmap,
     toggleHeatmap, toggleParcels, toggleBuffer, clearMarkers, clearPolygonLayers,
-    fitSelectedBID, getMap, TYPE_COLORS
+    fitSelectedBID, focusRecord, getMap, TYPE_COLORS
   };
 })();
