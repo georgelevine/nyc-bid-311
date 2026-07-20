@@ -1,7 +1,7 @@
 /**
  * matching.js — Record matching between Open Data and Portal sources
  *
- * Strategy: Match on timestamp (±3 min, with ET→UTC offset) +
+ * Strategy: Match on timestamp (±3 min) +
  *           complaint_type (case-insensitive) + address (street name)
  */
 const Matching = (() => {
@@ -10,13 +10,16 @@ const Matching = (() => {
   const COORD_WINDOW = 0.00025; // ~25m in NYC, enough for OD vs portal geocoding drift
 
   /**
-   * Parse portal date "M/D/YYYY H:MM:SS AM/PM" (Eastern Time) to UTC Date
+   * Parse the normalized ISO timestamp or the portal's legacy unzoned UTC clock.
    */
   function parsePortalDate(str) {
     if (!str) return null;
     try {
-      // Portal dates are in Eastern Time
-      // Parse manually: "3/16/2025 3:59:49 AM"
+      if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+        const parsed = new Date(str);
+        return Number.isFinite(parsed.getTime()) ? parsed : null;
+      }
+
       const parts = str.match(/(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+):(\d+)\s*(AM|PM)/i);
       if (!parts) return null;
 
@@ -25,20 +28,10 @@ const Matching = (() => {
       if (ampm.toUpperCase() === 'PM' && hours !== 12) hours += 12;
       if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
 
-      // Empirically verified: Portal numeric values minus the ET→UTC offset
-      // equal Open Data numeric values. This means to align timestamps we
-      // SUBTRACT the offset from portal hours.
-      // Eastern is UTC-5 (EST) or UTC-4 (EDT)
-      const m = parseInt(month);
-      const isDST = m >= 3 && m <= 11; // Simplified DST check
-      const offsetHours = isDST ? 4 : 5;
-
-      const utcDate = new Date(Date.UTC(
+      return new Date(Date.UTC(
         parseInt(year), parseInt(month) - 1, parseInt(day),
-        hours - offsetHours, parseInt(minutes), parseInt(seconds)
+        hours, parseInt(minutes), parseInt(seconds)
       ));
-
-      return utcDate;
     } catch (e) {
       return null;
     }
@@ -46,9 +39,7 @@ const Matching = (() => {
 
   /**
    * Parse Open Data date "2025-03-15T23:59:49.000" to Date
-   * Empirically: OD timestamps align with portal timestamps after subtracting
-   * the ET offset from portal. We parse OD as-is (no timezone suffix) so both
-   * produce the same numeric values for the same record.
+   * Open Data's unzoned clock aligns with the portal's UTC clock.
    */
   function parseODDate(str) {
     if (!str) return null;

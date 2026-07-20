@@ -597,11 +597,8 @@ const MapView = (() => {
    */
   function buildPopupForRecord(rec) {
     const statusClass = (rec.status || '').toLowerCase().replace(/\s+/g, '-');
-    const submitted = formatDate(rec.created_date);
+    const reported = formatDate(rec.created_date);
     const age = formatRelativeAge(rec.created_date);
-    const coords = rec.latitude != null && rec.longitude != null
-      ? `${Number(rec.latitude).toFixed(5)}, ${Number(rec.longitude).toFixed(5)}`
-      : null;
 
     let html = `<div class="popup-case-header">
       <div>
@@ -616,9 +613,8 @@ const MapView = (() => {
     }
 
     html += `<div class="popup-facts">
-      <div class="popup-fact"><span>Submitted</span><strong>${Utils.esc(submitted)}</strong></div>
+      <div class="popup-fact"><span>Reported</span><strong>${Utils.esc(reported)}</strong></div>
       ${age ? `<div class="popup-fact"><span>Age</span><strong>${Utils.esc(age)}</strong></div>` : ''}
-      ${coords ? `<div class="popup-fact popup-coordinates"><span>Coordinates</span><strong>${coords}</strong></div>` : ''}
     </div>`;
 
     if (rec.portalId) {
@@ -649,11 +645,16 @@ const MapView = (() => {
 
     const rows = [];
     const useful = value => value && !['n/a', 'none', 'not available'].includes(String(value).trim().toLowerCase());
+    const reportedTime = parseTimestamp(detail.dateReported || rec.created_date);
+    const updatedTime = parseTimestamp(detail.updatedOn);
+    const updateIsMeaningful = updatedTime && (!reportedTime || updatedTime - reportedTime >= 60000);
+    const nextUpdateMatch = useful(detail.nextUpdate) && String(detail.nextUpdate).trim().match(/^(-?\d+)/);
+    const nextUpdateIsUseful = useful(detail.nextUpdate) && (!nextUpdateMatch || Number(nextUpdateMatch[1]) > 0);
     if (useful(detail.problemDetails)) rows.push(['Problem details', detail.problemDetails]);
     if (useful(detail.additionalDetails)) rows.push(['Additional details', detail.additionalDetails]);
-    if (detail.updatedOn) rows.push(['Last updated', formatDate(detail.updatedOn)]);
+    if (updateIsMeaningful) rows.push(['Portal updated', formatDate(detail.updatedOn)]);
     if (detail.dateClosed) rows.push(['Closed', formatDate(detail.dateClosed)]);
-    if (detail.nextUpdate) rows.push(['Next update', detail.nextUpdate]);
+    if (!detail.dateClosed && nextUpdateIsUseful) rows.push(['Next update', detail.nextUpdate]);
 
     if (rows.length === 0) {
       target.remove();
@@ -710,19 +711,42 @@ const MapView = (() => {
   function getMap() { return map; }
 
   // Helpers
+  function parseTimestamp(str) {
+    if (!str) return null;
+    const text = String(str).trim();
+    const portalDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i);
+    if (portalDate) {
+      const [, month, day, year, rawHour, minute, second, period] = portalDate;
+      let hour = Number(rawHour) % 12;
+      if (period.toUpperCase() === 'PM') hour += 12;
+      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second)));
+    }
+
+    const parsed = new Date(text);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }
+
   function formatDate(str) {
     if (!str) return '\u2014';
     try {
-      if (str.includes('T')) {
-        return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-      }
-      return str.replace(/:\d{2}\s/, ' ');
+      const date = parseTimestamp(str);
+      if (!date) return str;
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      }).format(date);
     } catch (e) { return str; }
   }
 
   function formatRelativeAge(str) {
     if (!str) return null;
-    const timestamp = new Date(str).getTime();
+    const parsed = parseTimestamp(str);
+    const timestamp = parsed && parsed.getTime();
     if (!Number.isFinite(timestamp)) return null;
     const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
     if (minutes < 1) return 'Just now';

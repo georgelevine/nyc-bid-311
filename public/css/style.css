@@ -724,8 +724,6 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
 .popup-detail-row span { display: block; color: var(--text-muted); font-size: 10px; }
 .popup-fact strong,
 .popup-detail-row strong { color: var(--text-primary); font-size: 11px; font-weight: 600; }
-.popup-coordinates { grid-column: 1 / -1; }
-.popup-coordinates strong { font-variant-numeric: tabular-nums; }
 .popup-enrichment {
   display: grid;
   gap: 7px;

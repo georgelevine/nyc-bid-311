@@ -56,6 +56,46 @@ function setCache(key, data) {
 }
 
 /**
+ * The portal map feed returns a UTC clock in US date format without a timezone.
+ * Normalize it to an explicit ISO timestamp before sending it to the browser.
+ */
+function normalizePortalTimestamp(value) {
+  if (!value) return null;
+  const text = String(value).trim();
+  const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return text;
+
+  const [, month, day, year, rawHour, minute, second, period] = match;
+  let hour = Number(rawHour) % 12;
+  if (period.toUpperCase() === 'PM') hour += 12;
+
+  return new Date(Date.UTC(
+    Number(year), Number(month) - 1, Number(day),
+    hour, Number(minute), Number(second)
+  )).toISOString();
+}
+
+function portalTimestampDay(value) {
+  const normalized = normalizePortalTimestamp(value);
+  const match = normalized && normalized.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
+function normalizePortalPin(pin) {
+  return {
+    id: pin.id || null,
+    srnumber: (pin.data && pin.data.srnumber) || null,
+    problem: (pin.data && pin.data.problem) || pin.label || null,
+    address: (pin.data && pin.data.address) || pin.sublabel || null,
+    latitude: parseFloat(pin.latitude) || null,
+    longitude: parseFloat(pin.longitude) || null,
+    submitteddate: normalizePortalTimestamp(pin.data && pin.data.submitteddate),
+    status: (pin.data && pin.data.status) || null,
+    portalUrl: pin.id ? `https://portal.311.nyc.gov/sr-details/?id=${pin.id}` : null
+  };
+}
+
+/**
  * Fetch a single portal window. Returns normalized pins array.
  */
 async function fetchPortalWindow(bbox, fromdate, todate) {
@@ -83,17 +123,7 @@ async function fetchPortalWindow(bbox, fromdate, todate) {
     }
   }
 
-  const pins = Array.isArray(data) ? data.map(pin => ({
-    id: pin.id || null,
-    srnumber: (pin.data && pin.data.srnumber) || null,
-    problem: (pin.data && pin.data.problem) || pin.label || null,
-    address: (pin.data && pin.data.address) || pin.sublabel || null,
-    latitude: parseFloat(pin.latitude) || null,
-    longitude: parseFloat(pin.longitude) || null,
-    submitteddate: (pin.data && pin.data.submitteddate) || null,
-    status: (pin.data && pin.data.status) || null,
-    portalUrl: pin.id ? `https://portal.311.nyc.gov/sr-details/?id=${pin.id}` : null
-  })) : [];
+  const pins = Array.isArray(data) ? data.map(normalizePortalPin) : [];
 
   return { pins, hitCap: pins.length >= PORTAL_CAP };
 }
@@ -234,11 +264,8 @@ app.get('/api/portal-pins-adaptive', async (req, res) => {
       allPins = allPins.filter(pin => {
         // Keep pin if its date is NOT in a capped day
         if (!pin.submitteddate) return true;
-        // Parse portal date to get the day
-        const match = pin.submitteddate.match(/(\d+)\/(\d+)\/(\d+)/);
-        if (!match) return true;
-        const [, m, d, y] = match;
-        const dayStr = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        const dayStr = portalTimestampDay(pin.submitteddate);
+        if (!dayStr) return true;
         return !cappedDateSet.has(dayStr);
       });
 
@@ -320,17 +347,7 @@ app.get('/api/portal-pins', async (req, res) => {
       }
     }
 
-    const pins = Array.isArray(data) ? data.map(pin => ({
-      id: pin.id || null,
-      srnumber: (pin.data && pin.data.srnumber) || null,
-      problem: (pin.data && pin.data.problem) || pin.label || null,
-      address: (pin.data && pin.data.address) || pin.sublabel || null,
-      latitude: parseFloat(pin.latitude) || null,
-      longitude: parseFloat(pin.longitude) || null,
-      submitteddate: (pin.data && pin.data.submitteddate) || null,
-      status: (pin.data && pin.data.status) || null,
-      portalUrl: pin.id ? `https://portal.311.nyc.gov/sr-details/?id=${pin.id}` : null
-    })) : [];
+    const pins = Array.isArray(data) ? data.map(normalizePortalPin) : [];
 
     res.json({ pins, count: pins.length, raw_count: Array.isArray(data) ? data.length : 0 });
   } catch (err) {
