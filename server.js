@@ -435,9 +435,12 @@ app.get('/api/portal-detail', async (req, res) => {
   const cached = getCached(ck);
   if (cached) return res.json(cached);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
   try {
     const response = await fetch(`https://portal.311.nyc.gov/sr-details/?id=${encodeURIComponent(id)}`, {
-      headers: { ...PORTAL_HEADERS, Accept: 'text/html,application/xhtml+xml' }
+      headers: { ...PORTAL_HEADERS, Accept: 'text/html,application/xhtml+xml' },
+      signal: controller.signal
     });
     if (!response.ok) throw new Error(`Portal detail fetch failed: ${response.status}`);
 
@@ -447,6 +450,8 @@ app.get('/api/portal-detail', async (req, res) => {
   } catch (err) {
     console.error('Portal detail proxy error:', err.message);
     res.status(502).json({ error: 'Case details are temporarily unavailable' });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 

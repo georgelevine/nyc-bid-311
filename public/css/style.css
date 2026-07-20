@@ -340,6 +340,7 @@ select option { background: var(--bg-input); color: var(--text-primary); }
 
 /* ===== Stat Cards ===== */
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-grid[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stat-card {
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.03);
@@ -665,7 +666,6 @@ select option { background: var(--bg-input); color: var(--text-primary); }
 }
 .leaflet-popup-tip { background: var(--bg-sidebar) !important; }
 .leaflet-popup-pane { z-index: 880 !important; }
-body:has(.leaflet-popup) #map-legend { visibility: hidden; }
 .leaflet-popup-content {
   font-size: 12px !important;
   line-height: 1.5 !important;
@@ -1202,6 +1202,16 @@ body:has(.leaflet-popup) #map-legend { visibility: hidden; }
 
   /* Stat grid: readable on narrow screens */
   .stat-value { font-size: 20px; }
+
+  /* Keep the summary compact enough to reveal the complaint chart at half height. */
+  #sidebar.has-results[data-view="summary"] #summary-section > h2 { display: none; }
+  #sidebar.has-results[data-view="summary"] .seg-control { margin-bottom: 8px; }
+  #sidebar.has-results[data-view="summary"] #stat-grid { gap: 6px; }
+  #sidebar.has-results[data-view="summary"] .stat-card { padding: 9px 4px; }
+  #sidebar.has-results[data-view="summary"] .stat-value { font-size: 18px; }
+  #sidebar.has-results[data-view="summary"] .stat-label { font-size: 10px; line-height: 1.2; }
+  #sidebar.has-results[data-view="summary"] #summary-section h3 { margin: 12px 0 6px; }
+  #complaints-chart-container { height: 236px; }
 
   /* Map legend: FAB by default, expandable */
   #map-legend { top: 10px; right: 10px; left: 10px; }

@@ -111,7 +111,11 @@ const Data = (() => {
     if (!portalId) return Promise.resolve(null);
     if (portalDetailCache.has(portalId)) return portalDetailCache.get(portalId);
 
-    const request = fetch(`/api/portal-detail?id=${encodeURIComponent(portalId)}`)
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+    const request = fetch(`/api/portal-detail?id=${encodeURIComponent(portalId)}`, {
+      signal: controller.signal
+    })
       .then(resp => {
         if (!resp.ok) throw new Error(`Portal detail fetch failed: ${resp.status}`);
         return resp.json();
@@ -120,7 +124,8 @@ const Data = (() => {
         portalDetailCache.delete(portalId);
         console.warn('Portal case detail unavailable:', err.message);
         return null;
-      });
+      })
+      .finally(() => window.clearTimeout(timeout));
 
     portalDetailCache.set(portalId, request);
     return request;

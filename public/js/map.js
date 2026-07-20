@@ -369,9 +369,6 @@ const MapView = (() => {
 
     const legend = document.getElementById('map-legend');
     legend.classList.remove('hidden');
-    if (window.matchMedia('(max-width: 768px)').matches) {
-      legend.dataset.state = 'closed';
-    }
   }
 
   /**
@@ -437,11 +434,11 @@ const MapView = (() => {
       }
     };
     const scheduleClose = () => {
-      cancelClose();
+      if (marker._popupCloseTimer !== null) return;
       marker._popupCloseTimer = window.setTimeout(() => {
         marker._popupCloseTimer = null;
         if (!marker._popupPinned && !marker._popupHovered) marker.closePopup();
-      }, 220);
+      }, 480);
     };
     marker._scheduleHoverPopupClose = scheduleClose;
 
@@ -449,10 +446,9 @@ const MapView = (() => {
       cancelClose();
       desktopHoverPopupMarker = marker;
       marker.getPopup().options.autoPan = false;
-      marker.openPopup();
+      if (!marker.isPopupOpen || !marker.isPopupOpen()) marker.openPopup();
     };
     marker.on('mouseover', openHoverPopup);
-    marker.on('mousemove', openHoverPopup);
     marker.on('mouseout', scheduleClose);
     marker.on('add', () => {
       const element = marker.getElement();
@@ -631,15 +627,34 @@ const MapView = (() => {
 
   async function hydratePopupDetails(rec) {
     if (!rec.portalId || !Data.fetchPortalDetail) return;
-    const detail = await Data.fetchPortalDetail(rec.portalId);
-    const root = document.querySelector('.leaflet-popup-content');
-    if (!root) return;
-    const target = Array.from(root.querySelectorAll('.popup-enrichment'))
-      .find(el => el.dataset.portalId === rec.portalId);
+
+    const findTarget = () => {
+      const root = document.querySelector('.leaflet-popup-content');
+      if (!root) return null;
+      return Array.from(root.querySelectorAll('.popup-enrichment'))
+        .find(el => el.dataset.portalId === rec.portalId) || null;
+    };
+    const loadingTimeout = window.setTimeout(() => {
+      const target = findTarget();
+      if (target && target.querySelector('.popup-detail-loading')) {
+        target.innerHTML = '<span class="popup-detail-unavailable">No additional case details were provided.</span>';
+      }
+    }, 8500);
+
+    let detail = null;
+    try {
+      detail = await Data.fetchPortalDetail(rec.portalId);
+    } catch (err) {
+      detail = null;
+    } finally {
+      window.clearTimeout(loadingTimeout);
+    }
+
+    const target = findTarget();
     if (!target) return;
 
     if (!detail) {
-      target.innerHTML = '<span class="popup-detail-unavailable">More details are available on NYC311.</span>';
+      target.innerHTML = '<span class="popup-detail-unavailable">Additional case details are currently unavailable.</span>';
       return;
     }
 
@@ -657,7 +672,7 @@ const MapView = (() => {
     if (!detail.dateClosed && nextUpdateIsUseful) rows.push(['Next update', detail.nextUpdate]);
 
     if (rows.length === 0) {
-      target.remove();
+      target.innerHTML = '<span class="popup-detail-unavailable">No additional case details were provided.</span>';
       return;
     }
     target.innerHTML = rows.map(([label, value]) =>

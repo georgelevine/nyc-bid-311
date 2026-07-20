@@ -83,6 +83,7 @@ const Summary = (() => {
     else if (filter === 'open') cards = openCards(records);
     else cards = allCards(records);
 
+    grid.dataset.count = String(cards.length);
     grid.innerHTML = cards.map(c =>
       `<div class="stat-card"><div class="stat-value" title="${Utils.esc(c.title || '')}">${c.value}</div><div class="stat-label">${Utils.esc(c.label)}</div></div>`
     ).join('');
@@ -103,13 +104,11 @@ const Summary = (() => {
 
   function openCards(records) {
     const total = records.length;
-    const inProgress = records.filter(r => (r.status || '').toLowerCase().includes('progress')).length;
     const ages = records.map(r => daysSince(r.created_date)).filter(n => n != null && n >= 0);
     const avgAge = ages.length ? ages.reduce((a, b) => a + b, 0) / ages.length : null;
     const oldest = ages.length ? Math.max(...ages) : null;
     return [
       { label: 'Open', value: total.toLocaleString() },
-      { label: 'In Progress', value: inProgress.toLocaleString(), title: 'Subset of open requests explicitly marked "In Progress"' },
       { label: 'Avg. Age (days)', value: avgAge == null ? '—' : avgAge.toFixed(1), title: 'Average days since creation' },
       { label: 'Oldest (days)', value: oldest == null ? '—' : String(Math.round(oldest)), title: 'Days since creation of the oldest open request' }
     ];
@@ -170,7 +169,7 @@ const Summary = (() => {
   function updateStatusChart(records) {
     const counts = {};
     for (const r of records) {
-      const s = r.status || 'Unknown';
+      const s = isClosed(r) ? 'Closed' : 'Open';
       counts[s] = (counts[s] || 0) + 1;
     }
 
@@ -179,7 +178,6 @@ const Summary = (() => {
     const colors = labels.map(l => {
       const lower = l.toLowerCase();
       if (lower === 'closed') return '#34d399';
-      if (lower.includes('progress')) return '#fb923c';
       if (lower === 'open') return '#60a5fa';
       return '#94a3b8';
     });
