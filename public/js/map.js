@@ -429,6 +429,10 @@ const MapView = (() => {
     });
     if (!targetMarker) return;
 
+    const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getZoom(), 18));
+    map.invalidateSize({ pan: false });
+    map.setView(targetMarker.getLatLng(), targetZoom, { animate: false });
+
     const open = () => {
       targetMarker._pageIdx = targetIndex;
       targetMarker._popupPinned = true;

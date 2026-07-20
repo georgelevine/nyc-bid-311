@@ -96,10 +96,11 @@ const Summary = (() => {
     const rows = sorted.map((record, index) => {
       const type = record.complaint_type || 'Unknown';
       const srnumber = record.srnumber || 'Unavailable';
-      const requestNumber = record.portalUrl
-        ? `<a class="request-number" href="${Utils.esc(record.portalUrl)}" target="_blank" rel="noopener">${Utils.esc(srnumber)}</a>`
-        : `<span class="request-number">${Utils.esc(srnumber)}</span>`;
-      return `<tr>
+      const portalLink = record.portalUrl
+        ? `<a class="request-portal-link" href="${Utils.esc(record.portalUrl)}" target="_blank" rel="noopener" aria-label="Open ${Utils.esc(srnumber)} in the NYC311 Portal" title="Open in NYC311 Portal">&#8599;</a>`
+        : '';
+      const requestNumber = `<button class="request-number" type="button" aria-label="Show ${Utils.esc(srnumber)} on map">${Utils.esc(srnumber)}</button>${portalLink}`;
+      return `<tr class="request-row" data-request-index="${index}" tabindex="0" aria-label="Show ${Utils.esc(type)} request ${Utils.esc(srnumber)} on map">
         <td class="request-primary"><strong title="${Utils.esc(type)}">${Utils.esc(type)}</strong>${requestNumber}</td>
         <td>${Utils.esc(normalizeStatus(record.status))}</td>
         <td>${Utils.esc(formatRequestDate(record.created_date))}</td>
@@ -113,10 +114,31 @@ const Summary = (() => {
       <tbody>${rows || '<tr><td colspan="5" class="request-table-empty">No matching requests</td></tr>'}</tbody>
     </table>`;
 
-    container.querySelectorAll('.request-map-btn').forEach(button => {
-      button.addEventListener('click', () => {
-        const record = sorted[Number(button.dataset.requestIndex)];
-        if (record && typeof MapView !== 'undefined' && MapView.focusRecord) MapView.focusRecord(record);
+    const focusRow = row => {
+      const record = sorted[Number(row.dataset.requestIndex)];
+      if (!record || typeof MapView === 'undefined' || !MapView.focusRecord) return;
+
+      container.querySelectorAll('.request-row').forEach(candidate => {
+        candidate.classList.toggle('selected', candidate === row);
+      });
+
+      const focus = () => MapView.focusRecord(record);
+      if (typeof Filters !== 'undefined' && Filters.revealMapForRecord) {
+        Filters.revealMapForRecord(focus);
+      } else {
+        focus();
+      }
+    };
+
+    container.querySelectorAll('.request-row').forEach(row => {
+      row.addEventListener('click', event => {
+        if (event.target.closest('.request-portal-link')) return;
+        focusRow(row);
+      });
+      row.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        focusRow(row);
       });
     });
   }

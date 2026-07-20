@@ -301,6 +301,28 @@ const Filters = (() => {
     updateDrawerHandle();
   }
 
+  function revealMapForRecord(callback) {
+    const showRecord = () => {
+      if (typeof callback === 'function') callback();
+    };
+
+    if (!isMobile()) {
+      showRecord();
+      return;
+    }
+
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar.dataset.state === 'collapsed') {
+      showRecord();
+      return;
+    }
+
+    // Let the drawer finish shrinking before the marker zoom runs. Otherwise
+    // its responsive map fit can immediately replace the request-level view.
+    setSidebarState('collapsed');
+    window.setTimeout(showRecord, 320);
+  }
+
   // ===== BID Search Dropdown =====
 
   function buildBIDList() {
@@ -581,6 +603,7 @@ const Filters = (() => {
   function formatDateStr(d) { return d.toISOString().split('T')[0]; }
 
   return {
-    init, getSelectedBID, getDateRange, restoreFromHash, updateHash, setResultsState
+    init, getSelectedBID, getDateRange, restoreFromHash, updateHash,
+    setResultsState, revealMapForRecord
   };
 })();

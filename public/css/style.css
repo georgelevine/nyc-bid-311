@@ -398,7 +398,15 @@ select option { background: var(--bg-input); color: var(--text-primary); }
   white-space: nowrap;
 }
 .request-table tbody tr:last-child td { border-bottom: 0; }
-.request-table tbody tr:hover { background: rgba(255,255,255,0.035); }
+.request-row {
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s ease;
+}
+.request-row:hover,
+.request-row:focus-visible { background: rgba(79,156,247,0.09); }
+.request-row.selected { background: rgba(79,156,247,0.16); }
+.request-row.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .request-primary { min-width: 170px; white-space: normal !important; }
 .request-primary strong {
   display: block;
@@ -408,8 +416,25 @@ select option { background: var(--bg-input); color: var(--text-primary); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.request-number { display: inline-block; margin-top: 2px; color: var(--accent); text-decoration: none; }
-a.request-number:hover { text-decoration: underline; }
+.request-number {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+}
+.request-number:hover { text-decoration: underline; }
+.request-portal-link {
+  margin-left: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+.request-portal-link:hover { color: var(--accent); }
 .request-address {
   max-width: 240px;
   overflow: hidden;
@@ -1300,6 +1325,8 @@ a.request-number:hover { text-decoration: underline; }
   #complaints-chart-container { height: 236px; }
   .request-table-scroll { max-height: min(300px, 38dvh); }
   .request-table { min-width: 620px; table-layout: auto; }
+  .request-row { min-height: var(--touch); }
+  .request-row:active { background: rgba(79,156,247,0.2); }
   .request-map-btn { min-height: 40px; }
 
   /* Map legend: FAB by default, expandable */
