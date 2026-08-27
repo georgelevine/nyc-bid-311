@@ -295,8 +295,35 @@
         display: grid;
         grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.7fr);
         gap: 40px;
-        align-items: end;
+        align-items: center;
         margin-bottom: 24px;
+      }
+
+      .case-study-identity {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        min-width: 0;
+      }
+
+      .hudson-square-logo {
+        display: grid;
+        width: 116px;
+        height: 116px;
+        flex: 0 0 auto;
+        place-items: center;
+        padding: 13px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--white);
+        box-shadow: 0 14px 34px rgba(16, 36, 63, 0.09);
+      }
+
+      .hudson-square-logo img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
       .case-study-heading h2 {
@@ -427,6 +454,12 @@
         margin-top: 16px;
         color: #7a8999;
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .case-study-note {
+        margin: 14px 2px 0;
+        color: #7a8999;
         font-size: 12px;
       }
 
@@ -713,6 +746,18 @@
           border-radius: 22px;
         }
 
+        .case-study-identity {
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .hudson-square-logo {
+          width: 78px;
+          height: 78px;
+          padding: 9px;
+          border-radius: 18px;
+        }
+
         .case-map img {
           aspect-ratio: 4 / 3;
           object-position: center;
@@ -802,9 +847,19 @@
 
       <section class="case-study" aria-labelledby="hudson-square-title">
         <div class="case-study-heading">
-          <div>
-            <span class="card-label">Example district</span>
-            <h2 id="hudson-square-title">Hudson Square, request by request.</h2>
+          <div class="case-study-identity">
+            <div class="hudson-square-logo">
+              <img
+                src="assets/hudson-square-logo.png"
+                alt="Hudson Square logo"
+                width="295"
+                height="295"
+              />
+            </div>
+            <div>
+              <span class="card-label">Archived district example</span>
+              <h2 id="hudson-square-title">Hudson Square, request by request.</h2>
+            </div>
           </div>
           <p>
             The system matched each request’s coordinates against the exact BID
@@ -895,6 +950,12 @@
             <span class="request-number">311-28698320</span>
           </article>
         </div>
+
+        <p class="case-study-note">
+          The Hudson Square name and logo identify the district illustrated here.
+          NYC BID 311 was an independent project and was not affiliated with Hudson
+          Square BID or NYC311.
+        </p>
       </section>
 
       <section class="gallery" aria-labelledby="gallery-title">
