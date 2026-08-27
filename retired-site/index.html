@@ -287,6 +287,149 @@
         background: var(--green);
       }
 
+      .case-study {
+        margin: 68px 0 24px;
+      }
+
+      .case-study-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.7fr);
+        gap: 40px;
+        align-items: end;
+        margin-bottom: 24px;
+      }
+
+      .case-study-heading h2 {
+        max-width: 680px;
+        margin-bottom: 0;
+      }
+
+      .case-study-heading p {
+        margin: 0 0 4px;
+        color: var(--ink-soft);
+        font-size: 17px;
+      }
+
+      .case-map {
+        margin: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--white);
+        box-shadow: 0 22px 55px rgba(16, 36, 63, 0.1);
+      }
+
+      .case-map a {
+        display: block;
+        overflow: hidden;
+        background: #e9eef3;
+      }
+
+      .case-map img {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+      }
+
+      .case-map a:focus-visible {
+        outline: 4px solid var(--yellow);
+        outline-offset: -4px;
+      }
+
+      .case-map figcaption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 19px 24px 21px;
+        color: var(--ink-soft);
+        font-size: 14px;
+      }
+
+      .case-map figcaption strong {
+        color: var(--ink);
+        font-size: 16px;
+      }
+
+      .request-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .request-card {
+        display: grid;
+        min-width: 0;
+        min-height: 214px;
+        padding: 21px 22px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.84);
+      }
+
+      .request-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .request-card h3 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: -0.025em;
+        line-height: 1.2;
+      }
+
+      .request-status {
+        flex: 0 0 auto;
+        padding: 5px 8px;
+        border-radius: 999px;
+        color: var(--blue-dark);
+        background: #e7f0fd;
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 0.09em;
+        line-height: 1.2;
+        text-transform: uppercase;
+      }
+
+      .request-status.closed {
+        color: #0d6b52;
+        background: #def4eb;
+      }
+
+      .request-detail {
+        margin: 11px 0 5px;
+        color: #31445a;
+        font-weight: 750;
+      }
+
+      .request-address,
+      .request-outcome {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .request-outcome {
+        margin-top: 9px;
+        color: #266b59;
+        font-weight: 650;
+      }
+
+      .request-number {
+        align-self: end;
+        margin-top: 16px;
+        color: #7a8999;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+
       .gallery {
         margin: 68px 0 24px;
       }
@@ -508,6 +651,15 @@
           grid-template-columns: 1fr;
         }
 
+        .case-study-heading {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        .request-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .gallery-heading {
           display: grid;
           gap: 12px;
@@ -551,6 +703,33 @@
 
         .gallery {
           margin-top: 52px;
+        }
+
+        .case-study {
+          margin-top: 52px;
+        }
+
+        .case-map {
+          border-radius: 22px;
+        }
+
+        .case-map img {
+          aspect-ratio: 4 / 3;
+          object-position: center;
+        }
+
+        .case-map figcaption {
+          display: grid;
+          gap: 4px;
+          padding: 17px 20px 19px;
+        }
+
+        .request-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .request-card {
+          min-height: 0;
         }
 
         .gallery-card {
@@ -618,6 +797,103 @@
         <div class="status-item">
           <span class="status-label">Historical work</span>
           <span class="status-value">Preserved offline</span>
+        </div>
+      </section>
+
+      <section class="case-study" aria-labelledby="hudson-square-title">
+        <div class="case-study-heading">
+          <div>
+            <span class="card-label">Example district</span>
+            <h2 id="hudson-square-title">Hudson Square, request by request.</h2>
+          </div>
+          <p>
+            The system matched each request’s coordinates against the exact BID
+            boundary, then kept its submitted detail, status, and later agency
+            response together.
+          </p>
+        </div>
+
+        <figure class="case-map">
+          <a
+            href="assets/hudson-square-overview.png"
+            target="_blank"
+            rel="noopener"
+            aria-label="Open the full-size Hudson Square BID archive map"
+          >
+            <img
+              src="assets/hudson-square-overview.png"
+              alt="Archived NYC BID 311 dashboard showing the full Hudson Square Business Improvement District boundary and clustered 311 requests inside it"
+              width="1280"
+              height="720"
+            />
+          </a>
+          <figcaption>
+            <strong>Hudson Square · Manhattan</strong>
+            <span>150 mapped requests · Jul 22–Aug 27, 2026</span>
+          </figcaption>
+        </figure>
+
+        <div class="request-grid" aria-label="Sample Hudson Square requests">
+          <article class="request-card">
+            <div class="request-card-header">
+              <h3>Construction In Progress</h3>
+              <span class="request-status">In progress</span>
+            </div>
+            <p class="request-detail">Contrary to Plan</p>
+            <p class="request-address">80 Varick Street · 10013</p>
+            <span class="request-number">311-28745337</span>
+          </article>
+
+          <article class="request-card">
+            <div class="request-card-header">
+              <h3>Sidewalk Condition</h3>
+              <span class="request-status">In progress</span>
+            </div>
+            <p class="request-detail">Defective Hardware</p>
+            <p class="request-address">50 Vandam Street · 10013</p>
+            <span class="request-number">311-28743348</span>
+          </article>
+
+          <article class="request-card">
+            <div class="request-card-header">
+              <h3>Homeless Person Assistance</h3>
+              <span class="request-status closed">Closed</span>
+            </div>
+            <p class="request-detail">Non-Chronic</p>
+            <p class="request-address">150 Varick Street · 10013</p>
+            <p class="request-outcome">DHS outreach visited; the individual was not found.</p>
+            <span class="request-number">311-28741585</span>
+          </article>
+
+          <article class="request-card">
+            <div class="request-card-header">
+              <h3>Illegal Parking</h3>
+              <span class="request-status closed">Closed</span>
+            </div>
+            <p class="request-detail">Blocked Bike Lane</p>
+            <p class="request-address">34 Vandam Street · 10013</p>
+            <span class="request-number">311-28741255</span>
+          </article>
+
+          <article class="request-card">
+            <div class="request-card-header">
+              <h3>Noise</h3>
+              <span class="request-status">In progress</span>
+            </div>
+            <p class="request-detail">Air Conditioner / Ventilation</p>
+            <p class="request-address">7 Hudson Square · 10013</p>
+            <span class="request-number">311-28715813</span>
+          </article>
+
+          <article class="request-card">
+            <div class="request-card-header">
+              <h3>Illegal Dumping</h3>
+              <span class="request-status closed">Closed</span>
+            </div>
+            <p class="request-detail">Removal Request</p>
+            <p class="request-address">117 King Street · 10014</p>
+            <span class="request-number">311-28698320</span>
+          </article>
         </div>
       </section>
 
