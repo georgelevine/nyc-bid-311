@@ -287,6 +287,222 @@
         background: var(--green);
       }
 
+      .archive-stats {
+        margin: 62px 0 24px;
+      }
+
+      .archive-stats-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.7fr);
+        gap: 40px;
+        align-items: end;
+        margin-bottom: 24px;
+      }
+
+      .archive-stats-heading h2 {
+        max-width: 680px;
+        margin-bottom: 0;
+      }
+
+      .archive-stats-heading p {
+        margin: 0 0 4px;
+        color: var(--ink-soft);
+        font-size: 16px;
+      }
+
+      .archive-stats-grid {
+        display: grid;
+        grid-template-columns: 1.2fr repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(150px, auto));
+        gap: 14px;
+      }
+
+      .archive-stat {
+        display: flex;
+        min-width: 0;
+        padding: 23px 25px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        flex-direction: column;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.84);
+      }
+
+      .archive-stat.primary {
+        grid-row: 1 / span 2;
+        color: var(--white);
+        border-color: var(--ink);
+        background:
+          radial-gradient(circle at 94% 8%, rgba(255, 223, 0, 0.21), transparent 11rem),
+          var(--ink);
+        box-shadow: 0 22px 55px rgba(16, 36, 63, 0.16);
+      }
+
+      .archive-stat-label {
+        color: #66778a;
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: 0.13em;
+        line-height: 1.25;
+        text-transform: uppercase;
+      }
+
+      .archive-stat.primary .archive-stat-label {
+        color: var(--yellow);
+      }
+
+      .archive-stat-value {
+        display: block;
+        margin: 14px 0 8px;
+        color: var(--blue);
+        font-size: clamp(34px, 4.2vw, 56px);
+        font-weight: 880;
+        letter-spacing: -0.055em;
+        line-height: 0.95;
+      }
+
+      .archive-stat.primary .archive-stat-value {
+        margin-top: auto;
+        color: var(--white);
+        font-size: clamp(48px, 6.3vw, 78px);
+      }
+
+      .archive-stat p {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .archive-stat.primary p {
+        max-width: 310px;
+        color: #d8e1ea;
+        font-size: 16px;
+      }
+
+      .archive-method {
+        margin: 13px 2px 0;
+        color: #7a8999;
+        font-size: 12px;
+      }
+
+      .retrospective {
+        position: relative;
+        overflow: hidden;
+        margin: 24px 0;
+        padding: 37px 39px 34px;
+        border: 1px solid #19395d;
+        border-radius: 28px;
+        color: var(--white);
+        background:
+          linear-gradient(135deg, rgba(21, 104, 220, 0.24), transparent 48%),
+          var(--ink);
+        box-shadow: 0 22px 55px rgba(16, 36, 63, 0.14);
+      }
+
+      .retrospective::after {
+        position: absolute;
+        top: -70px;
+        right: -55px;
+        width: 210px;
+        height: 210px;
+        border: 34px solid rgba(255, 223, 0, 0.11);
+        border-radius: 50%;
+        content: "";
+        pointer-events: none;
+      }
+
+      .retrospective-header {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .retrospective .card-label {
+        margin: 0;
+        color: var(--yellow);
+      }
+
+      .static-pill {
+        padding: 7px 11px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        color: #dce6ef;
+        background: rgba(255, 255, 255, 0.08);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .retrospective h2 {
+        position: relative;
+        z-index: 1;
+        max-width: 720px;
+        margin-bottom: 18px;
+      }
+
+      .retrospective-lead {
+        position: relative;
+        z-index: 1;
+        max-width: 960px;
+        margin: 0;
+        color: #dce6ef;
+        font-size: clamp(18px, 2vw, 22px);
+        line-height: 1.48;
+      }
+
+      .insight-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 27px;
+      }
+
+      .insight {
+        padding: 19px 20px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .insight strong {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--yellow);
+        font-size: 29px;
+        letter-spacing: -0.04em;
+        line-height: 1;
+      }
+
+      .insight span {
+        color: #dce6ef;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .retrospective-detail {
+        position: relative;
+        z-index: 1;
+        margin: 24px 0 0;
+        color: #c1cedb;
+        font-size: 14px;
+      }
+
+      .retrospective-footnote {
+        position: relative;
+        z-index: 1;
+        margin: 9px 0 0;
+        color: #8fa2b5;
+        font-size: 12px;
+      }
+
       .case-study {
         margin: 68px 0 24px;
       }
@@ -684,6 +900,22 @@
           grid-template-columns: 1fr;
         }
 
+        .archive-stats-heading {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        .archive-stats-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-rows: auto;
+        }
+
+        .archive-stat.primary {
+          grid-row: auto;
+          grid-column: 1 / -1;
+          min-height: 250px;
+        }
+
         .case-study-heading {
           grid-template-columns: 1fr;
           gap: 12px;
@@ -732,6 +964,30 @@
         .status-item {
           min-height: auto;
           padding: 19px 21px;
+        }
+
+        .archive-stats {
+          margin-top: 52px;
+        }
+
+        .archive-stats-grid,
+        .insight-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .archive-stat.primary {
+          grid-column: auto;
+          min-height: 235px;
+        }
+
+        .retrospective {
+          padding: 29px 24px 27px;
+          border-radius: 22px;
+        }
+
+        .retrospective-header {
+          align-items: flex-start;
+          flex-direction: column;
         }
 
         .gallery {
@@ -830,19 +1086,96 @@
         </p>
       </section>
 
-      <section class="status-grid" aria-label="Retirement status">
-        <div class="status-item">
-          <span class="status-label">Data collection</span>
-          <span class="status-value">Stopped</span>
+      <section class="archive-stats" aria-labelledby="archive-stats-title">
+        <div class="archive-stats-heading">
+          <div>
+            <span class="card-label">Project at a glance</span>
+            <h2 id="archive-stats-title">The archive, in numbers.</h2>
+          </div>
+          <p>
+            The project combined a live citywide collector with a historical
+            BID-only backfill. The headline total removes records present in both.
+          </p>
         </div>
-        <div class="status-item">
-          <span class="status-label">Public dashboard</span>
-          <span class="status-value">Retired</span>
+
+        <div class="archive-stats-grid">
+          <article class="archive-stat primary">
+            <span class="archive-stat-label">Total preserved</span>
+            <strong class="archive-stat-value">337,895</strong>
+            <p>Unique NYC311 service requests across the combined project archive.</p>
+          </article>
+
+          <article class="archive-stat">
+            <span class="archive-stat-label">Live collector</span>
+            <strong class="archive-stat-value">209,743</strong>
+            <p>Records preserved during live operation, including catch-up discoveries.</p>
+          </article>
+
+          <article class="archive-stat">
+            <span class="archive-stat-label">Historical BID archive</span>
+            <strong class="archive-stat-value">139,566</strong>
+            <p>Unique BID requests from January 1 through August 6, 2026.</p>
+          </article>
+
+          <article class="archive-stat">
+            <span class="archive-stat-label">District coverage</span>
+            <strong class="archive-stat-value">78</strong>
+            <p>Business Improvement Districts represented in the preserved metrics.</p>
+          </article>
+
+          <article class="archive-stat">
+            <span class="archive-stat-label">Portal details loaded</span>
+            <strong class="archive-stat-value">99.99%</strong>
+            <p>209,712 of 209,743 live records had full Portal-detail rows.</p>
+          </article>
         </div>
-        <div class="status-item">
-          <span class="status-label">Historical work</span>
-          <span class="status-value">Preserved offline</span>
+
+        <p class="archive-method">
+          The combined total removes 11,414 requests shared by the live collection
+          and historical BID datasets. BID totals can overlap at shared boundaries.
+        </p>
+      </section>
+
+      <section class="retrospective" aria-labelledby="data-story-title">
+        <div class="retrospective-header">
+          <span class="card-label">AI-assisted retrospective</span>
+          <span class="static-pill">Static archive summary</span>
         </div>
+        <h2 id="data-story-title">What the BID archive showed.</h2>
+        <p class="retrospective-lead">
+          From January through July, full-month BID request volume stayed between
+          16,038 and 21,940. Illegal parking accounted for 17.7% of requests, while
+          the combined noise categories accounted for a nearly identical 17.8%.
+          Encampment and vendor-enforcement reports were the next most prominent
+          BID-wide patterns. By August 6, 94.6% of archived BID memberships were
+          recorded as closed.
+        </p>
+
+        <div class="insight-grid" aria-label="Key archive findings">
+          <div class="insight">
+            <strong>24,661</strong>
+            <span>Illegal-parking requests—the largest single category.</span>
+          </div>
+          <div class="insight">
+            <strong>94.6%</strong>
+            <span>Recorded closed at the final historical snapshot.</span>
+          </div>
+          <div class="insight">
+            <strong>25.7%</strong>
+            <span>Share of BID memberships within the five highest-volume districts.</span>
+          </div>
+        </div>
+
+        <p class="retrospective-detail">
+          The live collector operated from July 20 through August 27 and preserved
+          209,743 records. That figure includes audits and catch-up work, so it
+          describes archive coverage—not the rate at which New Yorkers submitted
+          new requests.
+        </p>
+        <p class="retrospective-footnote">
+          This one-time summary was generated with AI assistance from the static
+          project archive. It is not an official NYC311 analysis and does not update.
+        </p>
       </section>
 
       <section class="case-study" aria-labelledby="hudson-square-title">
